@@ -1,0 +1,85 @@
+---
+title: "Title Here"
+author: "Ryan, Natalie, and Ehsan"
+date: "2024-11-18"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+# Load necessary library
+```{r}
+library(tidycensus)
+library(dplyr)
+library(tidyr)
+library(writexl)
+library(readr)
+```
+
+
+## R Code 	
+```{r}
+year_tg <- 2023
+
+# Set your Census API key
+census_api_key("3504e2e4186afe0b674a6f3f54caefd9ef3af8d9", install = TRUE, overwrite=TRUE)
+#census_api_key("34777786635d1f4f42107118005896f09cde55e1", install = TRUE, overwrite=TRUE)
+
+## Use `load_variables()` function to explore more variables if needed
+codelists <- load_variables(year_tg, "acs5", cache = TRUE)
+
+#################################################################################
+variables <- c(
+  HIC = "B25141_001E",
+  MOR = "B25096_004E"# 
+)
+
+state_demographics <- get_acs(
+  geography = "county",
+  variables = variables,
+  year = year_tg,
+  survey = "acs5", # Use 5-year ACS data
+  output = "wide"
+)
+
+################################
+# Extract the variable names
+variable_columns <- names(variables)
+
+# Keep only the specified variables and the 'NAME' column for county names
+census_data <- state_demographics %>%
+  select(NAME, all_of(variable_columns))
+```
+
+```{r}
+# Extracting States and creating a new variable
+census_data$state <- sub(".*,\\s*", "", census_data$NAME) # Gets everything after the last comma
+census_data$county <- sub(",\\s*[^,]*$", "", census_data$NAME) # Gets everything before the last comma
+
+# Then remove "County" if it exists at the end
+census_data$county <- sub(" County$", "", census_data$county)
+census_data$county <- sub(" Census Area$", "", census_data$county)
+census_data$county <- sub(" Municipio$", "", census_data$county)
+census_data$county <- sub(" Parish$", "", census_data$county)
+census_data$county <- sub(" Borough$", "", census_data$county)
+census_data$county <- sub(" Planning Region$", "", census_data$county)
+census_data$county <- sub(" city$", "", census_data$county)
+```
+
+
+```{r}
+census_data <- census_data |> select(state, county, HIC)
+```
+
+
+```{r}
+noaa_data <- read_csv("Data/county_events.csv")
+```
+
+```{r}
+# Save the combined data to a new CSV file
+write_xlsx(filtered_data, "Data/acs.xlsx")
+```
