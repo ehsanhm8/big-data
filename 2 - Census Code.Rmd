@@ -140,11 +140,15 @@ Joining the census and NOAA datasets:
 
 census_data <- census_data |>
   mutate(county = str_to_upper(county, locale = "en")) |>
-  select(county, state, everything())
+  group_by(state) |>
+  arrange(county, .by_group = TRUE)
 
 # Pivoting the NOAA data so each county only appears once
 
 noaa_1_county <- noaa_data |>
   pivot_wider(names_from = event_type, values_from = event_count, values_fill = 0,
-              id_cols = c("county", "state", "year"))
+              id_cols = c("county", "state", "year")) |>
+  rename(state_bad = state) |>
+  group_by(state_bad) |>
+  arrange(county, .by_group = TRUE)
 ```
