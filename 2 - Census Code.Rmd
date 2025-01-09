@@ -1,6 +1,6 @@
 ---
-title: "Title Here"
-author: "Ryan, Natalie, and Ehsan"
+title: "cunsus"
+author: "Ehsan"
 date: "2024-11-18"
 output: pdf_document
 ---
@@ -33,8 +33,54 @@ codelists <- load_variables(year_tg, "acs5", cache = TRUE)
 
 #################################################################################
 variables <- c(
-  HIC = "B25141_001E",
-  MOR = "B25096_004E"# 
+  HIC_total = "B25141_001E",
+  HIC_with_mortgage = "B25141_002E",
+  HIC_with_mortgage_50 = "B25141_003E",
+  HIC_with_mortgage_200 = "B25141_004E",
+  HIC_with_mortgage_400 = "B25141_005E",
+  HIC_with_mortgage_650 = "B25141_006E",
+  HIC_with_mortgage_900 = "B25141_007E",
+  HIC_with_mortgage_1250 = "B25141_008E",
+  HIC_with_mortgage_1750 = "B25141_009E",
+  HIC_with_mortgage_2250 = "B25141_010E",
+  HIC_with_mortgage_2750 = "B25141_011E",
+  HIC_with_mortgage_3250 = "B25141_012E",
+  HIC_with_mortgage_3750 = "B25141_013E",
+  HIC_with_mortgage_m4000 = "B25141_014E",
+  HIC_without_mortgage = "B25141_015E",
+  HIC_without_mortgage_50 = "B25141_016E",
+  HIC_without_mortgage_200 = "B25141_017E",
+  HIC_without_mortgage_400 = "B25141_018E",
+  HIC_without_mortgage_650 = "B25141_019E",
+  HIC_without_mortgage_900 = "B25141_020E",
+  HIC_without_mortgage_1250 = "B25141_021E",
+  HIC_without_mortgage_1750 = "B25141_022E",
+  HIC_without_mortgage_2250 = "B25141_023E",
+  HIC_without_mortgage_2750 = "B25141_024E",
+  HIC_without_mortgage_3250 = "B25141_025E",
+  HIC_without_mortgage_3750 = "B25141_026E",
+  HIC_without_mortgage_m4000 = "B25141_027E",
+  MOR_total = "B25096_001E",
+  MOR_with = "B25096_002E",
+  MOR_with_25000 = "B25096_003E",
+  MOR_with_75000 = "B25096_004E",
+  MOR_with_125000 = "B25096_005E",
+  MOR_with_175000 = "B25096_006E",
+  MOR_with_250000 = "B25096_007E",
+  MOR_with_400000 = "B25096_008E",
+  MOR_with_625000 = "B25096_009E",
+  MOR_with_875000 = "B25096_010E",
+  MOR_with_m1000000 = "B25096_011E",
+  MOR_without = "B25096_012E",
+  MOR_without_25000 = "B25096_013E",
+  MOR_without_75000 = "B25096_014E",
+  MOR_without_125000 = "B25096_015E",
+  MOR_without_175000 = "B25096_016E",
+  MOR_without_250000 = "B25096_017E",
+  MOR_without_400000 = "B25096_018E",
+  MOR_without_625000 = "B25096_019E",
+  MOR_without_875000 = "B25096_020E",
+  MOR_without_m1000000 = "B25096_021E"
 )
 
 state_demographics <- get_acs(
