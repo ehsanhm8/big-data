@@ -136,7 +136,15 @@ noaa_data <- noaa_data |>
 Joining the census and NOAA datasets:
 
 ```{r}
+# Adjusting county names for a join
+
 census_data <- census_data |>
   mutate(county = str_to_upper(county, locale = "en")) |>
   select(county, state, everything())
+
+# Pivoting the NOAA data so each county only appears once
+
+noaa_1_county <- noaa_data |>
+  pivot_wider(names_from = event_type, values_from = event_count, values_fill = 0,
+              id_cols = c("county", "state", "year"))
 ```
