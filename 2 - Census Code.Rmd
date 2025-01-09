@@ -1,7 +1,7 @@
 ---
-title: "cunsus"
-author: "Ehsan"
-date: "2024-11-18"
+title: "Title for Group"
+author: "Ehsan Habibpour, Natalie Short, and Ryan Altman"
+date: today
 output: pdf_document
 ---
 
@@ -10,13 +10,15 @@ knitr::opts_chunk$set(echo = FALSE)
 ```
 
 
-# Load necessary library
+# Load necessary libraries
+
 ```{r}
 library(tidycensus)
 library(dplyr)
 library(tidyr)
 library(writexl)
 library(readr)
+library(stringr)
 ```
 
 
@@ -123,6 +125,18 @@ census_data <- census_data |>
   select(-"NAME")
 ```
 
+NOAA storm and events data download:
+
 ```{r}
 noaa_data <- read_csv("Data/county_events.csv")
+noaa_data <- noaa_data |>
+  filter(year == 2018 | year == 2023)
+```
+
+Joining the census and NOAA datasets:
+
+```{r}
+census_data <- census_data |>
+  mutate(county = str_to_upper(county, locale = "en")) |>
+  select(county, state, everything())
 ```
