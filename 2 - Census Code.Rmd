@@ -83,7 +83,7 @@ variables <- c(
   MOR_without_m1000000 = "B25096_021E"
 )
 
-state_demographics <- get_acs(
+census_data <- get_acs(
   geography = "county",
   variables = variables,
   year = year_tg,
@@ -96,7 +96,7 @@ state_demographics <- get_acs(
 variable_columns <- names(variables)
 
 # Keep only the specified variables and the 'NAME' column for county names
-census_data <- state_demographics %>%
+census_data <- census_data %>%
   select(NAME, all_of(variable_columns))
 ```
 
@@ -115,17 +115,14 @@ census_data$county <- sub(" Planning Region$", "", census_data$county)
 census_data$county <- sub(" city$", "", census_data$county)
 ```
 
-
 ```{r}
-census_data <- census_data |> select(state, county, HIC)
-```
+# Move state and county back to the front
 
+census_data <- census_data |>
+  select(county, state, everything()) |>
+  select(-"NAME")
+```
 
 ```{r}
 noaa_data <- read_csv("Data/county_events.csv")
-```
-
-```{r}
-# Save the combined data to a new CSV file
-write_xlsx(filtered_data, "Data/acs.xlsx")
 ```
