@@ -151,4 +151,6 @@ noaa_1_county <- noaa_data |>
   rename(state_bad = state) |>
   group_by(state_bad) |>
   arrange(county, .by_group = TRUE)
+
+
 ```
