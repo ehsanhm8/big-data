@@ -1,8 +1,11 @@
 ---
 title: "Title for Group"
 author: "Ehsan Habibpour, Natalie Short, and Ryan Altman"
-date: today
-output: pdf_document
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -133,7 +136,7 @@ noaa_data <- noaa_data |>
   filter(year == 2018 | year == 2023)
 ```
 
-Joining the census and NOAA datasets:
+# Joining the census and NOAA datasets:
 
 ```{r}
 # Adjusting county names for a join
@@ -141,7 +144,8 @@ Joining the census and NOAA datasets:
 census_data <- census_data |>
   mutate(county = str_to_upper(county, locale = "en")) |>
   group_by(state) |>
-  arrange(county, .by_group = TRUE)
+  arrange(county, .by_group = TRUE) |>
+  ungroup()
 
 # Pivoting the NOAA data so each county only appears once
 
@@ -149,8 +153,22 @@ noaa_1_county <- noaa_data |>
   pivot_wider(names_from = event_type, values_from = event_count, values_fill = 0,
               id_cols = c("county", "state", "year")) |>
   rename(state_bad = state) |>
+  mutate(total_events = rowSums(across(where(is.numeric))) - year) |>
   group_by(state_bad) |>
-  arrange(county, .by_group = TRUE)
+  arrange(county, .by_group = TRUE) |>
+  ungroup() |>
+  select(county, state_bad, year, total_events, everything())
 
+head(census_data)
+head(noaa_1_county)
+```
 
+### Splitting the NOAA event data by year -- not necessarily what we use, but it's good to have them split up.
+
+```{r}
+noaa_2018 <- noaa_1_county |>
+  filter(year == 2018)
+
+noaa_2023 <- noaa_1_county |>
+  filter(year == 2023)
 ```
