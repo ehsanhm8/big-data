@@ -394,7 +394,7 @@ ggplot(data = main_set, aes(
   theme_bw() +
   labs(title = "Major Weather Events' Effect on Costs") +
   labs(subtitle = "By County, By Year") + 
-  xlab("Total Major Weather Events") +
+  xlab("Total Major Weather Events in Year") +
   ylab("Owner Cost Median ($)") +
   scale_color_manual(values = c('green', 'darkred', 'blue'), 
                      labels = c("2013", "2018", "2023")) +
