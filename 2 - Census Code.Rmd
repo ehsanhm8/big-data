@@ -1,12 +1,15 @@
 ---
 title: "Title for Group"
 author: "Ehsan Habibpour, Natalie Short, and Ryan Altman"
-date: today
-output: pdf_document
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
@@ -14,6 +17,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ```{r}
 library(tidycensus)
+library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(writexl)
@@ -187,7 +191,7 @@ noaa_data <- noaa_data |>
   filter(year == 2018 | year == 2023)
 ```
 
-Joining the census and NOAA datasets:
+# Joining the census and NOAA datasets:
 
 ```{r}
 # Adjusting county names for a join
@@ -195,16 +199,211 @@ Joining the census and NOAA datasets:
 census_data <- census_data |>
   mutate(county = str_to_upper(county, locale = "en")) |>
   group_by(state) |>
-  arrange(county, .by_group = TRUE)
+  arrange(county, .by_group = TRUE) |>
+  ungroup()
 
 # Pivoting the NOAA data so each county only appears once
 
 noaa_1_county <- noaa_data |>
-  pivot_wider(names_from = event_type, values_from = event_count, values_fill = 0,
-              id_cols = c("county", "state", "year")) |>
+  pivot_wider(names_from = event_type, values_from = event_count, 
+              values_fill = list(event_count = 0),
+              id_cols = c("state_fips_code", "cz_fips_code", "year", "state", "county"))
+
+```
+
+```{r}
+
+noaa_1_county <- noaa_1_county |>
   rename(state_bad = state) |>
-  group_by(state_bad) |>
-  arrange(county, .by_group = TRUE)
+  mutate(total_events = rowSums(across(where(is.numeric))) - year) |>
+  group_by(state_fips_code) |>
+  arrange(county, .by_group = TRUE) |>
+  ungroup() |>
+  mutate(county_state = paste(county, state_fips_code, sep = " -- ")) |>
+  mutate(fips_ovr = paste(county, as.character(state_fips_code), as.character(cz_fips_code), sep = "__")) |>
+  select(county, fips_ovr, total_events, state_fips_code, county_state, year, everything())
 
+head(census_data)
+head(noaa_1_county)
+```
 
+### Splitting the NOAA event data by year -- not necessarily what we use, but it's good to have them split up.
+
+```{r}
+noaa_2018 <- noaa_1_county |>
+  filter(year == 2018)
+
+noaa_2023 <- noaa_1_county |>
+  filter(year == 2023)
+
+head(noaa_2018)
+head(noaa_2023)
+```
+
+### Counting the number of counties in each 
+
+```{r}
+print("2018:")
+nrow(noaa_2018)
+print("2023:")
+nrow(noaa_2023)
+```
+
+### Finding counties that only appear in one year.
+
+```{r}
+
+exclusive_counties_18 <- setdiff(noaa_2018$fips_ovr, noaa_2023$fips_ovr)
+exclusive_counties_23 <- setdiff(noaa_2023$fips_ovr, noaa_2018$fips_ovr)
+exclusive_counties <- c(exclusive_counties_18, exclusive_counties_23)
+length(exclusive_counties)
+```
+
+```{r}
+
+noaa_2018_bothyearcounties <- noaa_2018 |>
+  filter(!(fips_ovr %in% exclusive_counties))
+  
+noaa_2023_bothyearcounties <- noaa_2023 |>
+    filter(!(fips_ovr %in% exclusive_counties))
+
+print("Checking the row count:")
+print(nrow(noaa_2018_bothyearcounties))
+print(nrow(noaa_2023_bothyearcounties))
+```
+
+# Exploratory Data Analysis
+
+Are storms correlated by county?
+
+```{r}
+ggplot(mapping = aes(
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
+)) +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018") +
+  ylab("2023") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'navy')) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 750), ylim = c(0, 750)) +
+```
+
+Let's zoom in on the majority of counties:
+
+```{r}
+ggplot(mapping = aes(
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
+)) +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018") +
+  ylab("2023") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'navy')) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 310), ylim = c(0, 310))
+```
+
+…and zoom in even closer:
+
+```{r}
+ggplot(mapping = aes(
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
+)) +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018") +
+  ylab("2023") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'navy')) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 150), ylim = c(0, 150))
+```
+
+A linear model for this relationship:
+
+```{r}
+model <- lm(noaa_2023_bothyearcounties$total_events ~ noaa_2018_bothyearcounties$total_events)
+summary(model)
+```
+2018 events and 2023 events are highly correlated by county, which makes sense because weather is generally stable within a 5-year period.  Overall, though, there is a very slight positive relationship between year-change and total events -- demonstrating climate change and the greater prevalence of extreme weather events.
+
+Delineating by event type:
+
+```{r}
+event_sum_bothyears <- noaa_1_county |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year", name != "total_events", name != "state_fips_code", name != "cz_fips_code") |>
+  rename(event_type = name)
+
+event_sum_2018 <- noaa_2018 |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year", name != "state_fips_code", name != "cz_fips_code") |>
+  rename(event_type = name)
+
+event_sum_2023 <- noaa_2023 |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year", name != "state_fips_code", name != "cz_fips_code") |>
+  rename(event_type = name)
+```
+
+Floods:
+
+```{r}
+
+floods <- c("flood", "flash flood", "coastal flood", "lakeshore flood")
+
+floods_bothyears <- event_sum_bothyears |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+floods_2018 <- event_sum_2018 |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+floods_2023 <- event_sum_2023 |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+summary(floods_bothyears)
+
+head(floods_bothyears)
+```
+
+```{r}
+
+exclusive_counties_census <- setdiff(census_data$county, noaa_2023_bothyearcounties$county)
+exclusive_counties_noaa <- setdiff(noaa_2023_bothyearcounties$county, census_data$county)
+exclusive_counties <- c(exclusive_counties_census, exclusive_counties_noaa)
+length(exclusive_counties)
+
+census2023_noaa2023 <-
+  full_join(noaa_2023_bothyearcounties, census_data, 
+            by = "county")
+
+census2023_noaa2023 <- census2023_noaa2023 |>
+  filter(!(county %in% exclusive_counties))
 ```
