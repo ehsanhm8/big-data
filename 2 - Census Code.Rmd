@@ -110,7 +110,7 @@ NOAA storm and events data download:
 ```{r}
 noaa_data <- read_csv("Data/county_events.csv")
 noaa_data <- noaa_data |>
-  filter(year == 2018 | year == 2023)
+  filter(year == 2013 | year == 2018 | year == 2023)
 ```
 
 # Joining the census and NOAA datasets:
@@ -152,12 +152,16 @@ head(noaa_1_county)
 ### Splitting the NOAA event data by year -- not necessarily what we use, but it's good to have them split up.
 
 ```{r}
+noaa_2013 <- noaa_1_county |>
+  filter(year == 2013)
+
 noaa_2018 <- noaa_1_county |>
   filter(year == 2018)
 
 noaa_2023 <- noaa_1_county |>
   filter(year == 2023)
 
+head(noaa_2013)
 head(noaa_2018)
 head(noaa_2023)
 ```
@@ -165,6 +169,8 @@ head(noaa_2023)
 ### Counting the number of counties in each 
 
 ```{r}
+print("2013:")
+nrow(noaa_2013)
 print("2018:")
 nrow(noaa_2018)
 print("2023:")
@@ -175,13 +181,21 @@ nrow(noaa_2023)
 
 ```{r}
 
+exclusive_counties_13 <- setdiff(noaa_2013$fips_ovr, noaa_2018$fips_ovr)
+exclusive_counties_13_23 <- setdiff(noaa_2013$fips_ovr, noaa_2023$fips_ovr)
+exclusive_counties_13_18_1 <- setdiff(noaa_2023$fips_ovr, noaa_2013$fips_ovr)
+exclusive_counties_13_23_1 <- setdiff(noaa_2018$fips_ovr, noaa_2013$fips_ovr)
 exclusive_counties_18 <- setdiff(noaa_2018$fips_ovr, noaa_2023$fips_ovr)
 exclusive_counties_23 <- setdiff(noaa_2023$fips_ovr, noaa_2018$fips_ovr)
-exclusive_counties <- c(exclusive_counties_18, exclusive_counties_23)
+exclusive_counties <- c(exclusive_counties_13, exclusive_counties_13_23, 
+                        exclusive_counties_18, exclusive_counties_23,
+                        exclusive_counties_13_18_1, exclusive_counties_13_23_1)
 length(exclusive_counties)
 ```
 
 ```{r}
+noaa_2013_bothyearcounties <- noaa_2013 |>
+  filter(!(fips_ovr %in% exclusive_counties))
 
 noaa_2018_bothyearcounties <- noaa_2018 |>
   filter(!(fips_ovr %in% exclusive_counties))
@@ -190,6 +204,7 @@ noaa_2023_bothyearcounties <- noaa_2023 |>
     filter(!(fips_ovr %in% exclusive_counties))
 
 print("Checking the row count:")
+print(nrow(noaa_2013_bothyearcounties))
 print(nrow(noaa_2018_bothyearcounties))
 print(nrow(noaa_2023_bothyearcounties))
 ```
@@ -344,5 +359,20 @@ census2023_noaa2023 <- census2023_noaa2023 |>
   filter(!(county.y %in% exclusive_counties))
 ```
 
+```{r}
+main_set <-
+  full_join(noaa_1_county, census_data_total,
+            by = join_by(year == year, fips_ovr == fips_ovr))
+
+main_set <- main_set |>
+  filter(!(county.x %in% exclusive_counties)) |>
+  filter(!(county.y %in% exclusive_counties))
+```
+
 # Models and Analyses
+
+```{r}
+model_1 <- lm(owner_cost_median ~ total_events, data = main_set)
+summary(model_1)
+```
 
