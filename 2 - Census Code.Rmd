@@ -31,6 +31,7 @@ get_census_year_data <- function(year_tg, price_index, nt = 2) {
     houseowners_total = "B25087_001E", #Housing units
     houseowners_with_mortgage = "B25087_002E", #Housing units with a mortgage
     houseowners_without_mortgage = "B25087_020E", #Housing units without a mortgage
+    income_median = "B19013_001E", #Median household income in the past 12 months
     house_value_median = "B25077_001E", #Median Value
     owner_cost_median = "B25088_001E", #Median selected monthly owner costs
     owner_cost_median_with_mortgage = "B25088_002E", #same with mortgage
@@ -67,6 +68,7 @@ get_census_year_data <- function(year_tg, price_index, nt = 2) {
       county = str_remove(county, " city$")
     ) %>%
     mutate(
+      income_median = income_median/price_index,
       house_value_median = house_value_median/price_index,
       owner_cost_median = owner_cost_median * 12/price_index,
       owner_cost_median_with_mortgage = owner_cost_median_with_mortgage * 12/price_index,
@@ -76,7 +78,7 @@ get_census_year_data <- function(year_tg, price_index, nt = 2) {
     select(
       GEOID, state_fips, county_fips, state, county, year, houseowners_total,
       houseowners_with_mortgage, houseowners_without_mortgage, house_value_median,
-      owner_cost_median,
+      owner_cost_median, income_median,
       owner_cost_median_with_mortgage, owner_cost_median_without_mortgage,
       owner_cost_to_income_median, owner_cost_to_income_median_with_mortgage,
       owner_cost_to_income_median_without_mortgage
