@@ -21,6 +21,7 @@ library(tidyr)
 library(writexl)
 library(readr)
 library(stringr)
+library(plm)
 ```
 
 ```{r}
@@ -378,3 +379,25 @@ model_1 <- lm(owner_cost_median ~ total_events, data = main_set)
 summary(model_1)
 ```
 
+A graphical representation of the above:
+
+```{r}
+ggplot(data = main_set, aes(
+  x = total_events,
+  y = owner_cost_median,
+  color = cut(year, breaks = c(2012, 2014, 2017, 2019, 2022, 2024)),
+  alpha = 0.5
+)) +
+  geom_point() +
+  theme_bw() +
+  labs(title = "Major Weather Events' Effect on Costs") +
+  labs(subtitle = "By County, By Year") + 
+  xlab("Total Major Weather Events") +
+  ylab("Owner Cost Median ($)") +
+  scale_color_manual(values = c('green', 'darkred', 'blue'), 
+                     labels = c("2013", "2018", "2023")) +
+  theme(legend.title = element_blank()) +
+  theme(plot.title = element_text(color = "navy")) +
+  theme(plot.subtitle = element_text(color = "navy")) +
+  guides(alpha = "none")
+```
