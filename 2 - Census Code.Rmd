@@ -216,6 +216,8 @@ Are storms correlated by county?
 
 ```{r}
 
+axes = range(0, 750)
+
 ggplot(mapping = aes(
   x = noaa_2018_bothyearcounties$total_events,
   y = noaa_2023_bothyearcounties$total_events,
@@ -230,6 +232,5 @@ ggplot(mapping = aes(
   theme_bw() +
   theme(legend.position = "none") +
   theme(title = element_text(color = 'darkorchid4')) +
-  xlim(0, 750) +
-  ylim(0, 750)
+  coord_equal(ratio = 1, expand = TRUE)
 ```
