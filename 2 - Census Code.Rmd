@@ -348,8 +348,8 @@ census_data_total <- census_data_total |>
 census2023 <- census_data_total |>
   filter(year == 2023)
 
-exclusive_counties_census <- setdiff(census_data$county, noaa_2023_bothyearcounties$county)
-exclusive_counties_noaa <- setdiff(noaa_2023_bothyearcounties$county, census_data$county)
+exclusive_counties_census <- setdiff(census2023$county, noaa_2023_bothyearcounties$county)
+exclusive_counties_noaa <- setdiff(noaa_2023_bothyearcounties$county, census2023$county)
 exclusive_counties <- c(exclusive_counties_census, exclusive_counties_noaa)
 length(exclusive_counties)
 
@@ -361,3 +361,5 @@ census2023_noaa2023 <- census2023_noaa2023 |>
   filter(!(county.x %in% exclusive_counties)) |>
   filter(!(county.y %in% exclusive_counties))
 ```
+
+# Models and Analyses
