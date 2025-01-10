@@ -118,7 +118,7 @@ noaa_data <- noaa_data |>
 ```{r}
 # Adjusting county names for a join
 
-census_data <- census_data |>
+census_data_total <- census_data_total |>
   mutate(county = str_to_upper(county, locale = "en")) |>
   group_by(state) |>
   arrange(county, .by_group = TRUE) |>
@@ -145,7 +145,7 @@ noaa_1_county <- noaa_1_county |>
   mutate(fips_ovr = paste(county, as.character(state_fips_code), as.character(cz_fips_code), sep = "__")) |>
   select(county, fips_ovr, total_events, state_fips_code, county_state, year, everything())
 
-head(census_data)
+head(census_data_total)
 head(noaa_1_county)
 ```
 
@@ -321,11 +321,23 @@ census_data_total <- census_data_total |>
   mutate(county = str_to_upper(county, locale = "en")) |>
   mutate(fips_ovr = paste(county, as.character(state_fips), as.character(county_fips), sep = "__"))
 
+census2013 <- census_data_total |>
+  filter(year == 2013)
+
+census2018 <- census_data_total |>
+  filter(year == 2018)
+
 census2023 <- census_data_total |>
   filter(year == 2023)
 
-exclusive_counties_census <- setdiff(census_data$county, noaa_2023_bothyearcounties$county)
-exclusive_counties_noaa <- setdiff(noaa_2023_bothyearcounties$county, census_data$county)
+# 2013 Merge
+
+# 2018 Merge
+
+# 2023 Merge
+
+exclusive_counties_census <- setdiff(census_data_2023$county, noaa_2023_bothyearcounties$county)
+exclusive_counties_noaa <- setdiff(noaa_2023_bothyearcounties$county, census_data_2023$county)
 exclusive_counties <- c(exclusive_counties_census, exclusive_counties_noaa)
 length(exclusive_counties)
 
@@ -337,3 +349,6 @@ census2023_noaa2023 <- census2023_noaa2023 |>
   filter(!(county.x %in% exclusive_counties)) |>
   filter(!(county.y %in% exclusive_counties))
 ```
+
+# Analyses and Models
+
