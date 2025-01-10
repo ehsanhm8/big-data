@@ -151,15 +151,23 @@ census_data <- census_data |>
 # Pivoting the NOAA data so each county only appears once
 
 noaa_1_county <- noaa_data |>
-  pivot_wider(names_from = event_type, values_from = event_count, values_fill = 0,
-              id_cols = c("county", "state", "year")) |>
+  pivot_wider(names_from = event_type, values_from = event_count, 
+              values_fill = list(event_count = 0),
+              id_cols = c("state_fips_code", "cz_fips_code", "year", "state", "county"))
+
+```
+
+```{r}
+
+noaa_1_county <- noaa_1_county |>
   rename(state_bad = state) |>
   mutate(total_events = rowSums(across(where(is.numeric))) - year) |>
-  group_by(state_bad) |>
+  group_by(state_fips_code) |>
   arrange(county, .by_group = TRUE) |>
   ungroup() |>
-  mutate(county_state = paste(county, state_bad, sep = " -- ")) |>
-  select(county, state_bad, county_state, year, total_events, everything())
+  mutate(county_state = paste(county, state_fips_code, sep = " -- ")) |>
+  mutate(fips_ovr = paste(county, as.character(state_fips_code), as.character(cz_fips_code), sep = "__")) |>
+  select(county, fips_ovr, total_events, state_fips_code, county_state, year, everything())
 
 head(census_data)
 head(noaa_1_county)
@@ -191,8 +199,8 @@ nrow(noaa_2023)
 
 ```{r}
 
-exclusive_counties_18 <- setdiff(noaa_2018$county_state, noaa_2023$county_state)
-exclusive_counties_23 <- setdiff(noaa_2023$county_state, noaa_2018$county_state)
+exclusive_counties_18 <- setdiff(noaa_2018$fips_ovr, noaa_2023$fips_ovr)
+exclusive_counties_23 <- setdiff(noaa_2023$fips_ovr, noaa_2018$fips_ovr)
 exclusive_counties <- c(exclusive_counties_18, exclusive_counties_23)
 length(exclusive_counties)
 ```
@@ -200,10 +208,10 @@ length(exclusive_counties)
 ```{r}
 
 noaa_2018_bothyearcounties <- noaa_2018 |>
-  filter(!(county_state %in% exclusive_counties))
+  filter(!(fips_ovr %in% exclusive_counties))
   
 noaa_2023_bothyearcounties <- noaa_2023 |>
-    filter(!(county_state %in% exclusive_counties))
+    filter(!(fips_ovr %in% exclusive_counties))
 
 print("Checking the row count:")
 print(nrow(noaa_2018_bothyearcounties))
@@ -323,3 +331,17 @@ summary(floods_bothyears)
 head(floods_bothyears)
 ```
 
+```{r}
+
+exclusive_counties_census <- setdiff(census_data$county, noaa_2023_bothyearcounties$county)
+exclusive_counties_noaa <- setdiff(noaa_2023_bothyearcounties$county, census_data$county)
+exclusive_counties <- c(exclusive_counties_census, exclusive_counties_noaa)
+length(exclusive_counties)
+
+census2023_noaa2023 <-
+  full_join(noaa_2023_bothyearcounties, census_data, 
+            by = "county")
+
+census2023_noaa2023 <- census2023_noaa2023 |>
+  filter(!(county %in% exclusive_counties))
+```
