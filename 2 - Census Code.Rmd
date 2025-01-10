@@ -3,9 +3,9 @@ title: "Title for Group"
 author: "Ehsan Habibpour, Natalie Short, and Ryan Altman"
 date: "`r Sys.Date()`"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -17,6 +17,7 @@ knitr::opts_chunk$set(echo = FALSE)
 
 ```{r}
 library(tidycensus)
+library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(writexl)
@@ -171,10 +172,50 @@ noaa_2018 <- noaa_1_county |>
 
 noaa_2023 <- noaa_1_county |>
   filter(year == 2023)
+
+head(noaa_2018)
+head(noaa_2023)
+```
+
+### Counting the number of counties in each 
+
+```{r}
+print("2018:")
+nrow(noaa_2018)
+print("2023:")
+nrow(noaa_2023)
+```
+
+### Removing counties that only appear in one year.
+
+```{r}
+exclusive_counties <- setdiff(noaa_2018$county, noaa_2023$county)
+length(exclusive_counties)
+print(exclusive_counties)
 ```
 
 ```{r}
 
-# I tried doing a bunch of joins here but they did not work.  Will attempt in class tomorrow.
+noaa_2018_bothyearcounties <- noaa_2018 |>
+  filter(county != exclusive_counties)
+  
+noaa_2023_bothyearcounties <- noaa_2023 |>
+    filter( county != exclusive_counties)
 
+print("Checking the row count:")
+print(nrow(noaa_2018_bothyearcounties))
+print(nrow(noaa_2023_bothyearcounties))
+```
+
+# Exploratory Data Analysis
+
+Are storms correlated by county?
+
+```{r}
+
+ggplot(mapping = aes(
+  x = noaa_2018$total_events,
+  y = noaa_2023$total_events
+)) +
+  geom_point()
 ```
