@@ -122,12 +122,13 @@ census_data$county <- sub(" city$", "", census_data$county)
 ## Getting expected values
 ```{r}
 nt <- 2
+price_index <- 304.7
 census_data <- census_data|>
   mutate(houseowners = HIC_total) |>
   mutate(houseowners_with_morgage = HIC_with_mortgage) |>
   mutate(houseowners_without_morgage = HIC_without_mortgage) |>
   mutate(HIC_value_with_mortgage_ex =
-         HIC_with_mortgage_50 * 50 + 
+         (HIC_with_mortgage_50 * 50 + 
          HIC_with_mortgage_200 * 200 + 
          HIC_with_mortgage_400 * 400 + 
          HIC_with_mortgage_650 * 650 + 
@@ -138,9 +139,9 @@ census_data <- census_data|>
          HIC_with_mortgage_2750 * 2750 + 
          HIC_with_mortgage_3250 * 3250 + 
          HIC_with_mortgage_3750 * 3750 +
-         HIC_with_mortgage_m4000 * (nt*3750)) |>
+         HIC_with_mortgage_m4000 * (nt*3750))/price_index) |>
   mutate(HIC_value_without_mortgage_ex =
-         HIC_without_mortgage_50 * 50 + 
+         (HIC_without_mortgage_50 * 50 + 
          HIC_without_mortgage_200 * 200 + 
          HIC_without_mortgage_400 * 400 +
          HIC_without_mortgage_650 * 650 + 
@@ -151,9 +152,9 @@ census_data <- census_data|>
          HIC_without_mortgage_2750 * 2750 + 
          HIC_without_mortgage_3250 * 3250 + 
          HIC_without_mortgage_3750 * 3750 + 
-         HIC_without_mortgage_m4000 * (nt*3750)) |>
+         HIC_without_mortgage_m4000 * (nt*3750))/price_index) |>
   mutate(MOR_value_with_mortgage_ex =
-         MOR_with_25000 * 25000 +
+         (MOR_with_25000 * 25000 +
          MOR_with_75000 * 75000 +
          MOR_with_125000 * 125000 +
          MOR_with_175000 * 175000 +
@@ -161,9 +162,9 @@ census_data <- census_data|>
          MOR_with_400000 * 400000 +
          MOR_with_625000 * 625000 +
          MOR_with_875000 * 875000 +
-         MOR_with_m1000000 * (nt*875000)) |>
+         MOR_with_m1000000 * (nt*875000))/price_index) |>
   mutate(MOR_value_without_mortgage_ex =
-         MOR_without_25000 * 25000 +
+         (MOR_without_25000 * 25000 +
          MOR_without_75000 * 75000 +
          MOR_without_125000 * 125000 +
          MOR_without_175000 * 175000 +
@@ -171,18 +172,19 @@ census_data <- census_data|>
          MOR_without_400000 * 400000 +
          MOR_without_625000 * 625000 +
          MOR_without_875000 * 875000 +
-         MOR_without_m1000000 * (nt*875000)) |>
+         MOR_without_m1000000 * (nt*875000))/price_index) |>
   mutate(HIC_value_ex = HIC_value_with_mortgage_ex * houseowners_with_morgage +
          HIC_value_without_mortgage_ex * houseowners_without_morgage) |>
   mutate(MOR_value_ex = MOR_value_with_mortgage_ex * houseowners_with_morgage +
-         MOR_value_without_mortgage_ex * houseowners_without_morgage)
+         MOR_value_without_mortgage_ex * houseowners_without_morgage) |>
+  mutate(year = 2023)
 
 census_data <- census_data %>%
-  select(state, county, HIC_value_ex, MOR_value_ex, houseowners, 
+  select(state, county, year, HIC_value_ex, MOR_value_ex, houseowners, 
          houseowners_with_morgage, houseowners_without_morgage,
          HIC_value_with_mortgage_ex, HIC_value_without_mortgage_ex,
          MOR_value_with_mortgage_ex, MOR_value_without_mortgage_ex)
-``` 
+```
 
 NOAA storm and events data download:
 
