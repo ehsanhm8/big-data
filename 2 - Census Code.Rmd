@@ -284,27 +284,27 @@ Delineating by event type:
 
 ```{r}
 event_sum_bothyears <- noaa_1_county |>
-  select(-c(county, state_bad, county_state)) |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
   pivot_longer(cols = everything()) |>
   group_by(name) |>
   summarise(instances = sum(value)) |>
-  filter(name != "year", name != "total_events") |>
+  filter(name != "year", name != "total_events", name != "state_fips_code", name != "cz_fips_code") |>
   rename(event_type = name)
 
 event_sum_2018 <- noaa_2018 |>
-  select(-c(county, state_bad, county_state)) |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
   pivot_longer(cols = everything()) |>
   group_by(name) |>
   summarise(instances = sum(value)) |>
-  filter(name != "year") |>
+  filter(name != "year", name != "state_fips_code", name != "cz_fips_code") |>
   rename(event_type = name)
 
 event_sum_2023 <- noaa_2023 |>
-  select(-c(county, state_bad, county_state)) |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
   pivot_longer(cols = everything()) |>
   group_by(name) |>
   summarise(instances = sum(value)) |>
-  filter(name != "year") |>
+  filter(name != "year", name != "state_fips_code", name != "cz_fips_code") |>
   rename(event_type = name)
 ```
 
