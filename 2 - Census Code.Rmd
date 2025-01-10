@@ -12,12 +12,10 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-
 # Load necessary libraries
 
 ```{r}
 library(tidycensus)
-library(ggplot2)
 library(dplyr)
 library(tidyr)
 library(writexl)
@@ -25,163 +23,84 @@ library(readr)
 library(stringr)
 ```
 
+```{r}
+# get census data
+get_census_year_data <- function(year_tg, price_index, nt = 2) {
+  # Define variables
+  variables <- c(
+    houseowners_total = "B25087_001E", #Housing units
+    houseowners_with_mortgage = "B25087_002E", #Housing units with a mortgage
+    houseowners_without_mortgage = "B25087_020E", #Housing units without a mortgage
+    house_value_median = "B25077_001E", #Median Value
+    owner_cost_median = "B25088_001E", #Median selected monthly owner costs
+    owner_cost_median_with_mortgage = "B25088_002E", #same with mortgage
+    owner_cost_median_without_mortgage = "B25088_003E", #same without mortgage
+    owner_cost_to_income_median = "B25092_001E", #sama as a percentage of yearly income
+    owner_cost_to_income_median_with_mortgage = "B25092_002E", #same with mortgage
+    owner_cost_to_income_median_without_mortgage = "B25092_003E" #same without mortgage
+  )
 
+  census_data <- get_acs(
+    geography = "county",
+    variables = variables,
+    year = year_tg,
+    survey = "acs5",
+    output = "wide"
+  )
 
+  # Process data
+  census_data <- census_data %>%
+    select(GEOID, NAME, all_of(names(variables))) %>%
+    mutate(
+      state_fips = as.numeric(substr(GEOID, 1, 2)),    # Extract first 2 digits for state FIPS
+      county_fips = as.numeric(substr(GEOID, 3, 5)),   # Extract last 3 digits for county FIPS
+      state = sub(".*,\\s*", "", NAME),
+      county = sub(",\\s*[^,]*$", "", NAME)
+    ) %>%
+    mutate(
+      county = str_remove(county, " County$"),
+      county = str_remove(county, " Census Area$"),
+      county = str_remove(county, " Municipio$"),
+      county = str_remove(county, " Parish$"),
+      county = str_remove(county, " Borough$"),
+      county = str_remove(county, " Planning Region$"),
+      county = str_remove(county, " city$")
+    ) %>%
+    mutate(
+      house_value_median = house_value_median/price_index,
+      owner_cost_median = owner_cost_median * 12/price_index,
+      owner_cost_median_with_mortgage = owner_cost_median_with_mortgage * 12/price_index,
+      owner_cost_median_without_mortgage = owner_cost_median_without_mortgage * 12/price_index,
+      year = year_tg
+    ) %>%
+    select(
+      GEOID, state_fips, county_fips, state, county, year, houseowners_total,
+      houseowners_with_mortgage, houseowners_without_mortgage, house_value_median,
+      owner_cost_median,
+      owner_cost_median_with_mortgage, owner_cost_median_without_mortgage,
+      owner_cost_to_income_median, owner_cost_to_income_median_with_mortgage,
+      owner_cost_to_income_median_without_mortgage
+    )
   
-## R Code 	
-```{r}
-year_tg <- 2023
+  return(census_data)
+}
 
-# Set your Census API key
-census_api_key("3504e2e4186afe0b674a6f3f54caefd9ef3af8d9", install = TRUE, overwrite=TRUE)
-#census_api_key("34777786635d1f4f42107118005896f09cde55e1", install = TRUE, overwrite=TRUE)
+# Get data for each year
+census_data_2023 <- get_census_year_data(2023, 1) 
+census_data_2018 <- get_census_year_data(2018, 0.824)
+census_data_2013 <- get_census_year_data(2013, 0.765)
 
-## Use `load_variables()` function to explore more variables if needed
-codelists <- load_variables(year_tg, "acs5", cache = TRUE)
-
-#################################################################################
-variables <- c(
-  HIC_total = "B25141_001E",
-  HIC_with_mortgage = "B25141_002E",
-  HIC_with_mortgage_50 = "B25141_003E",
-  HIC_with_mortgage_200 = "B25141_004E",
-  HIC_with_mortgage_400 = "B25141_005E",
-  HIC_with_mortgage_650 = "B25141_006E",
-  HIC_with_mortgage_900 = "B25141_007E",
-  HIC_with_mortgage_1250 = "B25141_008E",
-  HIC_with_mortgage_1750 = "B25141_009E",
-  HIC_with_mortgage_2250 = "B25141_010E",
-  HIC_with_mortgage_2750 = "B25141_011E",
-  HIC_with_mortgage_3250 = "B25141_012E",
-  HIC_with_mortgage_3750 = "B25141_013E",
-  HIC_with_mortgage_m4000 = "B25141_014E",
-  HIC_without_mortgage = "B25141_015E",
-  HIC_without_mortgage_50 = "B25141_016E",
-  HIC_without_mortgage_200 = "B25141_017E",
-  HIC_without_mortgage_400 = "B25141_018E",
-  HIC_without_mortgage_650 = "B25141_019E",
-  HIC_without_mortgage_900 = "B25141_020E",
-  HIC_without_mortgage_1250 = "B25141_021E",
-  HIC_without_mortgage_1750 = "B25141_022E",
-  HIC_without_mortgage_2250 = "B25141_023E",
-  HIC_without_mortgage_2750 = "B25141_024E",
-  HIC_without_mortgage_3250 = "B25141_025E",
-  HIC_without_mortgage_3750 = "B25141_026E",
-  HIC_without_mortgage_m4000 = "B25141_027E",
-  MOR_total = "B25096_001E",
-  MOR_with = "B25096_002E",
-  MOR_with_25000 = "B25096_003E",
-  MOR_with_75000 = "B25096_004E",
-  MOR_with_125000 = "B25096_005E",
-  MOR_with_175000 = "B25096_006E",
-  MOR_with_250000 = "B25096_007E",
-  MOR_with_400000 = "B25096_008E",
-  MOR_with_625000 = "B25096_009E",
-  MOR_with_875000 = "B25096_010E",
-  MOR_with_m1000000 = "B25096_011E",
-  MOR_without = "B25096_012E",
-  MOR_without_25000 = "B25096_013E",
-  MOR_without_75000 = "B25096_014E",
-  MOR_without_125000 = "B25096_015E",
-  MOR_without_175000 = "B25096_016E",
-  MOR_without_250000 = "B25096_017E",
-  MOR_without_400000 = "B25096_018E",
-  MOR_without_625000 = "B25096_019E",
-  MOR_without_875000 = "B25096_020E",
-  MOR_without_m1000000 = "B25096_021E"
+# Combine all years into one dataset
+census_data_total <- bind_rows(
+  census_data_2023,
+  census_data_2018,
+  census_data_2013
 )
 
-census_data <- get_acs(
-  geography = "county",
-  variables = variables,
-  year = year_tg,
-  survey = "acs5", # Use 5-year ACS data
-  output = "wide"
-)
-
-################################
-# Extract the variable names
-variable_columns <- names(variables)
-
-# Keep only the specified variables and the 'NAME' column for county names
-census_data <- census_data %>%
-  select(NAME, all_of(variable_columns))
+# Sort the final dataset
+census_data_total <- census_data_total %>%
+  arrange(state, county, year)
 ```
-
-```{r}
-# Extracting States and creating a new variable
-census_data$state <- sub(".*,\\s*", "", census_data$NAME) # Gets everything after the last comma
-census_data$county <- sub(",\\s*[^,]*$", "", census_data$NAME) # Gets everything before the last comma
-
-# Then remove "County" if it exists at the end
-census_data$county <- sub(" County$", "", census_data$county)
-census_data$county <- sub(" Census Area$", "", census_data$county)
-census_data$county <- sub(" Municipio$", "", census_data$county)
-census_data$county <- sub(" Parish$", "", census_data$county)
-census_data$county <- sub(" Borough$", "", census_data$county)
-census_data$county <- sub(" Planning Region$", "", census_data$county)
-census_data$county <- sub(" city$", "", census_data$county)
-```
-
-## Getting expected values
-```{r}
-nt <- 2
-census_data <- census_data|>
-  mutate(houseowners = HIC_total) |>
-  mutate(houseowners_with_morgage = HIC_with_mortgage) |>
-  mutate(houseowners_without_morgage = HIC_without_mortgage) |>
-  mutate(HIC_value_with_mortgage_ex =
-         HIC_with_mortgage_50 * 50 + 
-         HIC_with_mortgage_200 * 200 + 
-         HIC_with_mortgage_400 * 400 + 
-         HIC_with_mortgage_650 * 650 + 
-         HIC_with_mortgage_900 * 900 + 
-         HIC_with_mortgage_1250 * 1250 + 
-         HIC_with_mortgage_1750 * 1750 + 
-         HIC_with_mortgage_2250 * 2250 + 
-         HIC_with_mortgage_2750 * 2750 + 
-         HIC_with_mortgage_3250 * 3250 + 
-         HIC_with_mortgage_3750 * 3750 +
-         HIC_with_mortgage_m4000 * (nt*3750)) |>
-  mutate(HIC_value_without_mortgage_ex =
-         HIC_without_mortgage_50 * 50 + 
-         HIC_without_mortgage_200 * 200 + 
-         HIC_without_mortgage_400 * 400 +
-         HIC_without_mortgage_650 * 650 + 
-         HIC_without_mortgage_900 * 900 + 
-         HIC_without_mortgage_1250 * 1250 + 
-         HIC_without_mortgage_1750 * 1750 + 
-         HIC_without_mortgage_2250 * 2250 + 
-         HIC_without_mortgage_2750 * 2750 + 
-         HIC_without_mortgage_3250 * 3250 + 
-         HIC_without_mortgage_3750 * 3750 + 
-         HIC_without_mortgage_m4000 * (nt*3750)) |>
-  mutate(MOR_value_with_mortgage_ex =
-         MOR_with_25000 * 25000 +
-         MOR_with_75000 * 75000 +
-         MOR_with_125000 * 125000 +
-         MOR_with_175000 * 175000 +
-         MOR_with_250000 * 250000 +
-         MOR_with_400000 * 400000 +
-         MOR_with_625000 * 625000 +
-         MOR_with_875000 * 875000 +
-         MOR_with_m1000000 * (nt*875000)) |>
-  mutate(MOR_value_without_mortgage_ex =
-         MOR_without_25000 * 25000 +
-         MOR_without_75000 * 75000 +
-         MOR_without_125000 * 125000 +
-         MOR_without_175000 * 175000 +
-         MOR_without_250000 * 250000 +
-         MOR_without_400000 * 400000 +
-         MOR_without_625000 * 625000 +
-         MOR_without_875000 * 875000 +
-         MOR_without_m1000000 * (nt*875000))
-
-census_data <- census_data %>%
-  select(state, county, houseowners, houseowners_with_morgage, houseowners_without_morgage,
-         HIC_value_with_mortgage_ex, HIC_value_without_mortgage_ex,
-         MOR_value_with_mortgage_ex, MOR_value_without_mortgage_ex)
-``` 
 
 NOAA storm and events data download:
 
