@@ -215,9 +215,6 @@ print(nrow(noaa_2023_bothyearcounties))
 Are storms correlated by county?
 
 ```{r}
-
-axes = range(0, 750)
-
 ggplot(mapping = aes(
   x = noaa_2018_bothyearcounties$total_events,
   y = noaa_2023_bothyearcounties$total_events,
@@ -232,5 +229,97 @@ ggplot(mapping = aes(
   theme_bw() +
   theme(legend.position = "none") +
   theme(title = element_text(color = 'navy')) +
-  coord_equal(ratio = 1, expand = TRUE)
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 750), ylim = c(0, 750))
 ```
+
+Let's zoom in on the majority of counties:
+
+```{r}
+ggplot(mapping = aes(
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
+)) +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018") +
+  ylab("2023") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'navy')) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 310), ylim = c(0, 310))
+```
+
+…and zoom in even closer:
+
+```{r}
+ggplot(mapping = aes(
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
+)) +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018") +
+  ylab("2023") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'navy')) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 150), ylim = c(0, 150))
+```
+
+Delineating by event type:
+
+```{r}
+event_sum_bothyears <- noaa_1_county |>
+  select(-c(county, state_bad, county_state)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year", name != "total_events") |>
+  rename(event_type = name)
+
+event_sum_2018 <- noaa_2018 |>
+  select(-c(county, state_bad, county_state)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year") |>
+  rename(event_type = name)
+
+event_sum_2023 <- noaa_2023 |>
+  select(-c(county, state_bad, county_state)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year") |>
+  rename(event_type = name)
+```
+
+Floods:
+
+```{r}
+
+floods <- c("flood", "flash flood", "coastal flood", "lakeshore flood")
+
+floods_bothyears <- event_sum_bothyears |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+floods_2018 <- event_sum_2018 |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+floods_2023 <- event_sum_2023 |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+summary(floods_bothyears)
+
+head(floods_bothyears)
+```
+
