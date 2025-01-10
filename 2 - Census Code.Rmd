@@ -172,3 +172,9 @@ noaa_2018 <- noaa_1_county |>
 noaa_2023 <- noaa_1_county |>
   filter(year == 2023)
 ```
+
+```{r}
+
+# I tried doing a bunch of joins here but they did not work.  Will attempt in class tomorrow.
+
+```
