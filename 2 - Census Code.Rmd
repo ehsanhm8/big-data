@@ -9,7 +9,7 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = TRUE)
 ```
 
 
@@ -237,7 +237,7 @@ ggplot(mapping = aes(
   theme_bw() +
   theme(legend.position = "none") +
   theme(title = element_text(color = 'navy')) +
-  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 750), ylim = c(0, 750))
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 750), ylim = c(0, 750)) +
 ```
 
 Let's zoom in on the majority of counties:
@@ -279,6 +279,14 @@ ggplot(mapping = aes(
   theme(title = element_text(color = 'navy')) +
   coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 150), ylim = c(0, 150))
 ```
+
+A linear model for this relationship:
+
+```{r}
+model <- lm(noaa_2023_bothyearcounties$total_events ~ noaa_2018_bothyearcounties$total_events)
+summary(model)
+```
+2018 events and 2023 events are highly correlated by county, which makes sense because weather is generally stable within a 5-year period.  Overall, though, there is a very slight positive relationship between year-change and total events -- demonstrating climate change and the greater prevalence of extreme weather events.
 
 Delineating by event type:
 
