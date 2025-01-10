@@ -223,7 +223,7 @@ ggplot(mapping = aes(
   y = noaa_2023_bothyearcounties$total_events,
   alpha = 0.5
 )) +
-  geom_point(color = 'darkorchid4') +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
   labs(
     title = "Five-Year Change in Weather Events",
     subtitle = "Counties Where Events > 0, per NOAA") +
@@ -231,6 +231,6 @@ ggplot(mapping = aes(
   ylab("2023") +
   theme_bw() +
   theme(legend.position = "none") +
-  theme(title = element_text(color = 'darkorchid4')) +
+  theme(title = element_text(color = 'navy')) +
   coord_equal(ratio = 1, expand = TRUE)
 ```
