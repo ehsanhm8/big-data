@@ -171,10 +171,15 @@ census_data <- census_data|>
          MOR_without_400000 * 400000 +
          MOR_without_625000 * 625000 +
          MOR_without_875000 * 875000 +
-         MOR_without_m1000000 * (nt*875000))
+         MOR_without_m1000000 * (nt*875000)) |>
+  mutate(HIC_value_ex = HIC_value_with_mortgage_ex * houseowners_with_morgage +
+         HIC_value_without_mortgage_ex * houseowners_without_morgage) |>
+  mutate(MOR_value_ex = MOR_value_with_mortgage_ex * houseowners_with_morgage +
+         MOR_value_without_mortgage_ex * houseowners_without_morgage)
 
 census_data <- census_data %>%
-  select(state, county, houseowners, houseowners_with_morgage, houseowners_without_morgage,
+  select(state, county, HIC_value_ex, MOR_value_ex, houseowners, 
+         houseowners_with_morgage, houseowners_without_morgage,
          HIC_value_with_mortgage_ex, HIC_value_without_mortgage_ex,
          MOR_value_with_mortgage_ex, MOR_value_without_mortgage_ex)
 ``` 
