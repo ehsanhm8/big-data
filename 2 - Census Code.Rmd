@@ -366,7 +366,9 @@ main_set <-
 
 main_set <- main_set |>
   filter(!(county.x %in% exclusive_counties)) |>
-  filter(!(county.y %in% exclusive_counties))
+  filter(!(county.y %in% exclusive_counties)) |>
+  select(fips_ovr, state, year, total_events, owner_cost_median, everything()) |>
+  drop_na()
 ```
 
 # Models and Analyses
