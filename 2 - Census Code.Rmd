@@ -158,7 +158,8 @@ noaa_1_county <- noaa_data |>
   group_by(state_bad) |>
   arrange(county, .by_group = TRUE) |>
   ungroup() |>
-  select(county, state_bad, year, total_events, everything())
+  mutate(county_state = paste(county, state_bad, sep = " -- ")) |>
+  select(county, state_bad, county_state, year, total_events, everything())
 
 head(census_data)
 head(noaa_1_county)
@@ -186,21 +187,23 @@ print("2023:")
 nrow(noaa_2023)
 ```
 
-### Removing counties that only appear in one year.
+### Finding counties that only appear in one year.
 
 ```{r}
-exclusive_counties <- setdiff(noaa_2018$county, noaa_2023$county)
+
+exclusive_counties_18 <- setdiff(noaa_2018$county_state, noaa_2023$county_state)
+exclusive_counties_23 <- setdiff(noaa_2023$county_state, noaa_2018$county_state)
+exclusive_counties <- c(exclusive_counties_18, exclusive_counties_23)
 length(exclusive_counties)
-print(exclusive_counties)
 ```
 
 ```{r}
 
 noaa_2018_bothyearcounties <- noaa_2018 |>
-  filter(county != exclusive_counties)
+  filter(!(county_state %in% exclusive_counties))
   
 noaa_2023_bothyearcounties <- noaa_2023 |>
-    filter( county != exclusive_counties)
+    filter(!(county_state %in% exclusive_counties))
 
 print("Checking the row count:")
 print(nrow(noaa_2018_bothyearcounties))
@@ -214,8 +217,19 @@ Are storms correlated by county?
 ```{r}
 
 ggplot(mapping = aes(
-  x = noaa_2018$total_events,
-  y = noaa_2023$total_events
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
 )) +
-  geom_point()
+  geom_point(color = 'darkorchid4') +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018") +
+  ylab("2023") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'darkorchid4')) +
+  xlim(0, 750) +
+  ylim(0, 750)
 ```
