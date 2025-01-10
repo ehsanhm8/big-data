@@ -205,12 +205,12 @@ ggplot(mapping = aes(
   labs(
     title = "Five-Year Change in Weather Events",
     subtitle = "Counties Where Events > 0, per NOAA") +
-  xlab("2018") +
-  ylab("2023") +
+  xlab("2018 | Total Events") +
+  ylab("2023 | Total Events") +
   theme_bw() +
   theme(legend.position = "none") +
   theme(title = element_text(color = 'navy')) +
-  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 750), ylim = c(0, 750)) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 750), ylim = c(0, 750))
 ```
 
 Let's zoom in on the majority of counties:
@@ -225,8 +225,8 @@ ggplot(mapping = aes(
   labs(
     title = "Five-Year Change in Weather Events",
     subtitle = "Counties Where Events > 0, per NOAA") +
-  xlab("2018") +
-  ylab("2023") +
+  xlab("2018 | Total Events") +
+  ylab("2023 | Total Events") +
   theme_bw() +
   theme(legend.position = "none") +
   theme(title = element_text(color = 'navy')) +
@@ -245,8 +245,8 @@ ggplot(mapping = aes(
   labs(
     title = "Five-Year Change in Weather Events",
     subtitle = "Counties Where Events > 0, per NOAA") +
-  xlab("2018") +
-  ylab("2023") +
+  xlab("2018 | Total Events") +
+  ylab("2023 | Total Events") +
   theme_bw() +
   theme(legend.position = "none") +
   theme(title = element_text(color = 'navy')) +
