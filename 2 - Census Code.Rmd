@@ -166,7 +166,7 @@ noaa_1_county <- noaa_1_county |>
   arrange(county, .by_group = TRUE) |>
   ungroup() |>
   mutate(county_state = paste(county, state_fips_code, sep = " -- ")) |>
-  mutate(fips_ovr = paste(county, as.character(state_fips_code), as.character(cz_fips_code), sep = "__")) |>
+  mutate(fips_ovr = paste(as.character(state_fips_code), as.character(cz_fips_code), sep = "__")) |>
   select(county, fips_ovr, total_events, state_fips_code, county_state, year, everything())
 
 head(census_data)
