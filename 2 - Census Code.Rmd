@@ -317,15 +317,23 @@ head(floods_bothyears)
 
 ```{r}
 
+census_data_total <- census_data_total |>
+  mutate(county = str_to_upper(county, locale = "en")) |>
+  mutate(fips_ovr = paste(county, as.character(state_fips), as.character(county_fips), sep = "__"))
+
+census2023 <- census_data_total |>
+  filter(year == 2023)
+
 exclusive_counties_census <- setdiff(census_data$county, noaa_2023_bothyearcounties$county)
 exclusive_counties_noaa <- setdiff(noaa_2023_bothyearcounties$county, census_data$county)
 exclusive_counties <- c(exclusive_counties_census, exclusive_counties_noaa)
 length(exclusive_counties)
 
 census2023_noaa2023 <-
-  full_join(noaa_2023_bothyearcounties, census_data, 
-            by = "county")
+  full_join(noaa_2023_bothyearcounties, census2023, 
+            by = "fips_ovr")
 
 census2023_noaa2023 <- census2023_noaa2023 |>
-  filter(!(county %in% exclusive_counties))
+  filter(!(county.x %in% exclusive_counties)) |>
+  filter(!(county.y %in% exclusive_counties))
 ```
