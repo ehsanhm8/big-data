@@ -31,6 +31,7 @@ get_census_year_data <- function(year_tg, price_index, nt = 2) {
     houseowners_total = "B25087_001E", #Housing units
     houseowners_with_mortgage = "B25087_002E", #Housing units with a mortgage
     houseowners_without_mortgage = "B25087_020E", #Housing units without a mortgage
+    household_size_average = "B25010_001E", #Average Household Size
     income_median = "B19013_001E", #Median household income in the past 12 months
     house_value_median = "B25077_001E", #Median Value
     owner_cost_median = "B25088_001E", #Median selected monthly owner costs
@@ -77,8 +78,8 @@ get_census_year_data <- function(year_tg, price_index, nt = 2) {
     ) %>%
     select(
       GEOID, state_fips, county_fips, state, county, year, houseowners_total,
-      houseowners_with_mortgage, houseowners_without_mortgage, house_value_median,
-      owner_cost_median, income_median,
+      houseowners_with_mortgage, houseowners_without_mortgage, household_size_average,
+      house_value_median, owner_cost_median, income_median,
       owner_cost_median_with_mortgage, owner_cost_median_without_mortgage,
       owner_cost_to_income_median, owner_cost_to_income_median_with_mortgage,
       owner_cost_to_income_median_without_mortgage
