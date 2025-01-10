@@ -7,4 +7,5 @@ Welcome to our final project repo!
 - Our data can be found in the "Data" folder, and our main R code file is at the top of the directory and is labeled **2 - Census Code.Rmd**.
 <p>
 Best,
-<p> *Ryan, Natalie, and Ehsan*
+
+*Ryan, Natalie, and Ehsan*
