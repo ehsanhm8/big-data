@@ -1,9 +1,9 @@
 ---
 title: "Are increased incidence of extreme storm events associated with a change in homeowner insurance costs?"
 author: 
-  - Ryan Altman^[American University]
-  - Ehsan Habibpour^[American University]
-  - Nataie Short^[American University]
+  - Ryan Altman^[American University Undergraduate Student]
+  - Ehsan Habibpour^[American University Graduate Student]
+  - Natalie Short^[American University Graduate Student]
 format: 
   pdf:
     number-sections: true
