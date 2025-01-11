@@ -164,8 +164,8 @@ noaa_1_county <- noaa_1_county |>
   mutate(fips_ovr = paste(county, as.character(state_fips_code), as.character(cz_fips_code), sep = "__")) |>
   select(county, fips_ovr, total_events, state_fips_code, county_state, year, everything())
 
-head(census_data_total)
-head(noaa_1_county)
+# head(census_data_total)
+# head(noaa_1_county)
 
 ### Splitting the NOAA event data by year -- not necessarily what we use, but it's good to have them split up.
 
@@ -178,9 +178,9 @@ noaa_2018 <- noaa_1_county |>
 noaa_2023 <- noaa_1_county |>
   filter(year == 2023)
 
-head(noaa_2013)
-head(noaa_2018)
-head(noaa_2023)
+# head(noaa_2013)
+# head(noaa_2018)
+# head(noaa_2023)
 
 ### Counting the number of counties in each 
 
