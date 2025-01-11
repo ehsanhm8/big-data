@@ -24,6 +24,10 @@ library(readr)
 library(stringr)
 library(plm)
 library(ggplot2)
+library(plm)
+library(lmtest)
+library(sandwich)
+library(stargazer)
 ```
 
 ```{r}
@@ -434,8 +438,7 @@ events_violin
 # Models and Analyses
 # Panel
 ```{r}
-library(lmtest)
-library(sandwich)
+
 #write_xlsx(main_set, "Data/main_set.xlsx")
 
 # Create panel data structure
@@ -514,7 +517,7 @@ coef(lasso_model)
 
 # Presentation
 ```{r}
-library(stargazer)
+
 stargazer(fe_model, 
           type = "text",  # Use "html" or "latex" for other formats
           title = "Fixed Effects Regression Results",
@@ -654,8 +657,6 @@ model_2_plot
 Create lag:
 
 ```{r}
-library(dplyr)
-library(plm)
 
 main_set <- main_set %>%
   mutate(ending_fips_ovr = sub("^[^_]*_","",fips_ovr))%>%
