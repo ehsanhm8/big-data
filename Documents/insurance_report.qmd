@@ -43,17 +43,15 @@ library(sandwich)
 library(stargazer)
 library(glmnet)
 library(Matrix)
-```
 
-Census data download:
-
-```{r}
-#| echo: false
-#| message: false
+# Census data download:
 
 # get census data
+
 get_census_year_data <- function(year_tg, price_index, nt = 2) {
-  # Define variables
+
+# Define variables
+
   variables <- c(
     houseowners_total = "B25087_001E", #Housing units
     houseowners_with_mortgage = "B25087_002E", #Housing units with a mortgage
