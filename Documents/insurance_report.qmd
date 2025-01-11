@@ -205,11 +205,6 @@ noaa_2018_bothyearcounties <- noaa_2018 |>
   
 noaa_2023_bothyearcounties <- noaa_2023 |>
     filter(!(fips_ovr %in% exclusive_counties))
-
-print("Checking the row count:")
-print(nrow(noaa_2013_bothyearcounties))
-print(nrow(noaa_2018_bothyearcounties))
-print(nrow(noaa_2023_bothyearcounties))
 ```
 
 # Introduction
@@ -651,6 +646,7 @@ Our LASSO analysis provides additional insights. In this model, the log_total_ev
 
 Panel
 ```{r}
+#| echo: false
 
 #write_xlsx(main_set, "Data/main_set.xlsx")
 
@@ -675,6 +671,8 @@ panel_data_plm <- pdata.frame(panel_data, index = c("fips_ovr", "year"))
 
 Fixed effects model
 ```{r}
+#| echo: false
+
 fe_model1 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
                 log_income_median + log_household_size_average, 
                 data = panel_data_plm,
@@ -701,6 +699,7 @@ print(clustered_results)
 
 Lasso model
 ```{r}
+#| echo: false
 
 county_dummies <- model.matrix(~ factor(fips_ovr) - 1, data = panel_data_plm)
 
@@ -719,6 +718,7 @@ lasso_model <- glmnet(X_full, y, alpha = 1, lambda = cv_lasso$lambda.min)
 
 Presentation
 ```{r}
+#| echo: false
 
 stargazer(fe_model, 
           type = "text",  # Use "html" or "latex" for other formats
