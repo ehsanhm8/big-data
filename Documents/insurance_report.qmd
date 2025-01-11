@@ -133,7 +133,7 @@ census_data_total <- census_data_total %>%
 NOAA storm and events data download:
 
 ```{r}
-noaa_data <- read_csv("Data/county_events.csv")
+noaa_data <- read_csv("../Data/county_events.csv")
 noaa_data <- noaa_data |>
   filter(year == 2013 | year == 2018 | year == 2023)
 ```
