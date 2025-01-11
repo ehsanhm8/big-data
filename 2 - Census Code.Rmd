@@ -403,7 +403,8 @@ ggplot(data = main_set, aes(
   theme(plot.subtitle = element_text(color = "navy")) +
   guides(alpha = "none")
 ```
-Create lag 
+Create lag:
+
 ```{r}
 library(dplyr)
 library(plm)
