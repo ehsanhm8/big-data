@@ -214,7 +214,7 @@ print(nrow(noaa_2023_bothyearcounties))
 
 # Exploratory Data Analysis
 
-Are storms correlated by county?
+Are storms correlated b y county?
 
 ```{r}
 ggplot(mapping = aes(
@@ -372,6 +372,48 @@ main_set <- main_set |>
   filter(!(county.y %in% exclusive_counties)) |>
   select(fips_ovr, state, year, total_events, owner_cost_median, everything()) |>
   drop_na()
+```
+
+More EDA:
+
+```{r}
+cost_hist <- ggplot(data = main_set, aes(x = owner_cost_median)) +
+  geom_histogram(fill = 'darkred') +
+  theme_bw() +
+  labs(
+    title = "Median of Estimated Monthly Homeowner Costs",
+    subtitle = ("(with insurance)")
+  ) +
+  xlab("Owner Cost Median ($)") +
+  ylab("Number of US Counties")
+
+cost_hist
+```
+
+```{r}
+events_boxplot <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year))) +
+  geom_boxplot() +
+  labs(title = "Weather Events Sorted by Year") +
+  coord_flip() +
+  ylab("Year") +
+  xlab("Total Reported Severe Events") +
+  theme_bw()
+
+events_boxplot
+```
+
+```{r}
+events_boxplot_no_outliers <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year))) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_x_continuous(limits = quantile(main_set$total_events, c(0.1, 0.9))) +
+  labs(title = "Weather Events Sorted by Year", 
+       subtitle = "Outliers Removed") +
+  coord_flip() +
+  ylab("Year") +
+  xlab("Total Reported Severe Events") +
+  theme_bw()
+
+events_boxplot_no_outliers
 ```
 
 # Models and Analyses
