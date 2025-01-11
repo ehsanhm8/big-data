@@ -565,7 +565,6 @@ model_1_faceted_plot <- ggplot(data = main_set, aes(
 
 model_1_faceted_plot
 ```
-```
 
 Shifting NOAA years to better plot effects YoY:
 
