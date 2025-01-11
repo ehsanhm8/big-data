@@ -472,10 +472,47 @@ fe_model2 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
                 data = panel_data_plm,
                 model = "within")
 
-fe_model <- fe_model2
+fe_model3 <- plm(log_owner_cost ~ log_total_events + log_house_value_median,
+                data = panel_data_plm,
+                model = "within")
+
+fe_model4 <- plm(log_owner_cost ~ log_total_events_lagged + log_house_value_median,
+                data = panel_data_plm,
+                model = "within")
+
+fe_model <- fe_model4
 
 clustered_results <- coeftest(fe_model, vcov = vcovHC(fe_model, type = "HC1", cluster = "group"))
 print(clustered_results)
+```
+
+# Lasso model
+```{r}
+library(glmnet)
+library(Matrix)
+
+# First, create the matrix of fixed effects
+# Convert county IDs to dummy variables
+county_dummies <- model.matrix(~ factor(fips_ovr) - 1, data = panel_data_plm)
+
+# Create matrix of other predictors
+X <- model.matrix(~ log_total_events + log_house_value_median - 1, 
+                 data = panel_data_plm)
+
+# Combine predictors and fixed effects
+X_full <- cbind(X, county_dummies)
+
+# Response variable
+y <- panel_data_plm$log_owner_cost
+
+# Fit LASSO model with cross-validation
+cv_lasso <- cv.glmnet(X_full, y, alpha = 1)
+
+# Fit final model with optimal lambda
+lasso_model <- glmnet(X_full, y, alpha = 1, lambda = cv_lasso$lambda.min)
+
+# View coefficients
+coef(lasso_model)
 ```
 
 # Presentation
