@@ -611,8 +611,7 @@ When we examine fe_model4, which uses the lag of the logarithm of total events t
 
 Our LASSO analysis provides additional insights. In this model, the log_total_events variable shrinks to zero, indicating it may not be as strong a predictor as initially thought. The LASSO approach estimates most of the fixed effects for the counties, suggesting that county-specific characteristics play a significant role in determining homeowner costs. This comprehensive analysis raises questions about the true nature of the relationship between natural disasters and homeowner costs, and suggests we might need to explore additional factors or alternative model specifications.
 
-# Models and Analyses
-# Panel
+Panel
 ```{r}
 
 #write_xlsx(main_set, "Data/main_set.xlsx")
@@ -636,7 +635,7 @@ panel_data <- main_set %>%
 panel_data_plm <- pdata.frame(panel_data, index = c("fips_ovr", "year"))
 ```
 
-# fixed effects model
+Fixed effects model
 ```{r}
 fe_model1 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
                 log_income_median + log_household_size_average, 
@@ -662,7 +661,7 @@ clustered_results <- coeftest(fe_model, vcov = vcovHC(fe_model, type = "HC1", cl
 print(clustered_results)
 ```
 
-# Lasso model
+Lasso model
 ```{r}
 
 # First, create the matrix of fixed effects
@@ -689,7 +688,7 @@ lasso_model <- glmnet(X_full, y, alpha = 1, lambda = cv_lasso$lambda.min)
 coef(lasso_model)
 ```
 
-# Presentation
+Presentation
 ```{r}
 
 stargazer(fe_model, 
