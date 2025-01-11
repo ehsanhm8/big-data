@@ -133,7 +133,6 @@ census_data_total <- census_data_total %>%
 
 noaa_data <- read_csv("../Data/county_events.csv")
 
-```{r}
 noaa_data <- noaa_data |>
   filter(year == 2013 | year == 2018 | year == 2023)
 
@@ -219,6 +218,46 @@ print(nrow(noaa_2013_bothyearcounties))
 print(nrow(noaa_2018_bothyearcounties))
 print(nrow(noaa_2023_bothyearcounties))
 ```
+
+# Introduction
+
+In recent years, the homeowners insurance market has been disrupted by more extreme weather events - increasing both in storm intensity and incidence - which has made the provision of this insurance unprofitable in many states, resulting in rate hikes or the cessation of coverage altogether \cite{latimes2024insurancecrisis, nyt2023climateinsurance, nyt2024climateinsurancehomes, nyt2024insurancepremiums}. Major insurers State Farm, Farmers, and Allstate have all pulled out of providing homeowners insurance in California. State Farm, previously the largest homeowners insurer in the state, cited “historic increases in construction costs outpacing inflation, rapidly growing catastrophe exposure, and a challenging reinsurance market” when they announced this change in 2023 \cite{statefarm2023california}. In this study, we search for evidence of the second reason by examining whether severe storm event data is correlated with homeowners reported insurance costs. 
+
+# Literature Review
+
+Since extreme weather events are expected to increase in intensity and incidence as climate change worsens, this issue will likely only get worse \cite{ipcc2021chapter11}. However, it is difficult to obtain data on homeowners insurance costs, as state insurance regulators have neglected to collect this data from insurance companies, so it is not possible to see exactly how much these premiums have changed over time, besides relying on anecdotal reports from homeowners \cite{nyt2024naichurdles}.
+\cite{Kousky2019role} in a review of disaster insurance markets, points out that while natural disaster losses have been increasing worldwide, there is surprisingly little empirical research on how these events affect insurance costs. This limitation in research is particularly notable when studying the relationship between extreme weather events and homeowner insurance costs, making it difficult to understand how increases in storm frequency might influence insurance markets over time.
+
+In order to integrate citations into the References section below, we add entries into our file `main.bib`. This is a plain-text file that we edit in RStudio (or BibDesk, or similar). We store `main.bib` in the same folder as our paper's `.qmd` and `.pdf` files. Its entries are formatted so that they can be knit to `.pdf`; see [https://j.mp/2UzTXEZ](https://www.overleaf.com/learn/latex/Bibliography_management_with_bibtex#The_bibliography_file) for example entries for articles, books, and miscellaneous. We can get these entries automatically from Google Scholar by turning on BibTeX in the Google Scholar Settings - Bibliography Manager. Perhaps we use a tool like free, open-source BibDesk to help us manage the `.bib` file.
+
+# Data {#sec-data}
+
+We choose two separate datasets to examine this problem. To estimate homeowner insurance costs, we use the American Community Survey, which is part of the US Census and is administered five years. Our unit of analysis is county-year, to estimate the variation in monthly homeowner costs across geography and time.
+
+Our county-level census data comes from the American Community Survey (ACS) 5-year estimates, accessed through the Census Bureau's API. We collect data for three distinct, yearlong periods: 2013, 2018, and 2023. For each county, we extract several housing-related variables including the median monthly owner costs, median house value, median household income, and average household size. The county identification is based on FIPS (Federal Information Processing Standards) codes, which consist of a two-digit state code and a up-to-three-digit county code.
+
+To ensure comparability across different time periods, all monetary values are adjusted for inflation using price indices (with 2023 as the base year, applying indices of 0.765 for 2013 and 0.824 for 2018). Monthly owner costs are annualized by multiplying by 12. The final dataset is created by combining data from all three time periods and organizing it by state, county, and year.
+
+Our dataset includes several key variables: total number of housing units, units with and without mortgages, average household size, median household income, median house value, and median monthly owner costs (separated into categories for properties with and without mortgages). We also collect data on owner costs as a percentage of yearly income, both overall and separated by mortgage status. County names are standardized by removing suffixes such as "County," "Census Area," "Municipio," "Parish," "Borough," "Planning Region," and "City" to ensure consistency across different naming jurisdictions.
+
+It is important to note that while the 2023 ACS included a separate variable for homeowner insurance, this is not available in some years' surveys. In surveys prior to 2023, homeowner fire, hazard, and flood insurance costs are incorporated into a broader measure called "Selected Monthly Owner Costs," which also encompassed real estate taxes, mortgages, utilities, and fuels. To account for these varying components, we include house value in our model as a proxy for real estate taxes and mortgage costs, while household size is included to capture variation in utility and fuel costs.
+
+
+Our weather event data is obtained from the National Oceanic and Atmospheric Administration (NOAA) through Google Cloud's BigQuery platform. We access the public dataset 'bigquery-public-data.noaa_historic_severe_storms.storms' using Python's BigQuery client library. To establish the connection, we create a service account and associated credentials file that allows secure access to the Google Cloud API.
+
+The query extracts yearly event data at the county level, including state and county FIPS codes for precise geographic identification. For each county, we collect the number of occurrences of different types of severe weather events. The initial format of the NOAA data presents individual reports of specific weather events by county and year (for example, one row would read as "King County, Washington had 4 reports of debris flow in 2013"). To make this data more amenable to analysis, we transform it using a pivot_wider() function to create a format where each county-year combination represents a single row. We then aggregate all event reports for each county-year into a total event count, which serves as our primary measure of severe weather activity in our analysis.
+
+The data is organized by year, state, and county, with corresponding FIPS codes to ensure accurate matching with our census data. The query groups events by these geographic identifiers and event type, providing a comprehensive count of different severe weather occurrences for each location and time period. This structured approach allows us to create a consistent dataset that can be merged with our housing cost data for subsequent analysis.
+
+# Methods
+
+We merge NOAA data and ACS data using a Full Join, based on a combination of county names and Federal Information Processing Standard (FIPS) geographic codes.  This allows for counties with the same name but different geographies (for example, there are 25 Jefferson counties in the United States) to not merge any data.
+
+Once we have this main, joined dataset, we are able to run statistical analyses.  Wanting to check 2013 weather events’ possible effects on 2018’s homeowner costs in Clark County, Kentucky – as one of many examples – we also make a shifted dataset.  This set includes a new variable that applied a positive 5-year shift on NOAA data, allowing for easy modeling based on – again, as one example – 2018 weather reporting on 2023 costs by county.
+
+The unshifted linear model uses the unshifted weather data to predict housing costs in the same year: 2013 costs by 2013 weather events in each county, 2018 costs by 2018 weather events in each county, and 2023 costs by 2023 weather events in each county.  The model begins with an intercept of $11,777.40 and predicts a decrease of $1.96 in annual housing costs for each extreme weather event in the county.  This model is statistically significant, with a p-value of 0.0007; the linear model has an adjusted R-squared that is effectively 0.
+
+The shifted linear model uses the shifted dataset to predict housing costs 5 years later: 2018 costs by 2013 weather events in each county and 2023 costs by 2018 weather events in each county.  The model begins with an intercept of $11,351.34 and predicts a decrease of $1.31 in annual housing costs for each extreme weather event in the county five years previous.  This model is not statistically significant, with a p-value of 0.0536; the model also has an adjusted R-squared that is approaching 0.
 
 # Exploratory Data Analysis
 
@@ -439,105 +478,13 @@ events_violin <- ggplot(data = main_set, aes(x = total_events, y = as.factor(yea
 events_violin
 ```
 
-# Models and Analyses
-# Panel
-```{r}
+We also estimate a fixed effect model to explore how homeowner costs relate to natural disaster events within each state over time. Our regression equation is structured as:
 
-#write_xlsx(main_set, "Data/main_set.xlsx")
+Yti = BXti + fixed effects
 
-# Create panel data structure
-panel_data <- main_set %>%
-  arrange(fips_ovr, year) %>%
-  group_by(fips_ovr) %>%
-  mutate(
-    total_events_lagged = dplyr::lag(total_events),
-    log_owner_cost = log(owner_cost_median),
-    log_total_events = log(total_events+1),
-    log_total_events_lagged = log(total_events_lagged+1),
-    log_house_value_median = log(house_value_median),
-    log_income_median = log(income_median),
-    log_household_size_average = log(household_size_average)
-  ) %>%
-  select(fips_ovr, year, owner_cost_median, total_events,
-         total_events_lagged, everything()) |>
-  ungroup()
-panel_data_plm <- pdata.frame(panel_data, index = c("fips_ovr", "year"))
-```
+In this equation, Yti represents the logarithm of median owner cost in county i at time t. The explanatory variables Xti include our main variable of interest - the logarithm of total number of events - along with the following control variables: the logarithm of median house value and the average household size at the county level. The fixed effects component captures county-specific characteristics that remain constant over time. By using fixed effects at the county level, we control for time-invariant factors specific to each county that might influence homeowner costs.
 
-# fixed effects model
-```{r}
-fe_model1 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
-                log_income_median + log_household_size_average, 
-                data = panel_data_plm,
-                model = "within")
-
-fe_model2 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
-                log_household_size_average, 
-                data = panel_data_plm,
-                model = "within")
-
-fe_model3 <- plm(log_owner_cost ~ log_total_events + log_house_value_median,
-                data = panel_data_plm,
-                model = "within")
-
-fe_model4 <- plm(log_owner_cost ~ log_total_events_lagged + log_house_value_median,
-                data = panel_data_plm,
-                model = "within")
-
-fe_model <- fe_model4
-
-clustered_results <- coeftest(fe_model, vcov = vcovHC(fe_model, type = "HC1", cluster = "group"))
-print(clustered_results)
-```
-
-# Lasso model
-```{r}
-
-# First, create the matrix of fixed effects
-# Convert county IDs to dummy variables
-county_dummies <- model.matrix(~ factor(fips_ovr) - 1, data = panel_data_plm)
-
-# Create matrix of other predictors
-X <- model.matrix(~ log_total_events + log_house_value_median - 1, 
-                 data = panel_data_plm)
-
-# Combine predictors and fixed effects
-X_full <- cbind(X, county_dummies)
-
-# Response variable
-y <- panel_data_plm$log_owner_cost
-
-# Fit LASSO model with cross-validation
-cv_lasso <- cv.glmnet(X_full, y, alpha = 1)
-
-# Fit final model with optimal lambda
-lasso_model <- glmnet(X_full, y, alpha = 1, lambda = cv_lasso$lambda.min)
-
-# View coefficients
-coef(lasso_model)
-```
-
-# Presentation
-```{r}
-
-stargazer(fe_model, 
-          type = "text",  # Use "html" or "latex" for other formats
-          title = "Fixed Effects Regression Results",
-          covariate.labels = c("Log Total Events",
-                             "Log House Value",
-                             "Log Household Size"),
-          dep.var.labels = "Log Owner Cost",
-          digit.separator = ",",
-          digits = 3,
-          model.numbers = FALSE,
-          se = sqrt(diag(vcovHC(fe_model, type = "HC1", cluster = "group"))), # Use clustered SE
-          star.cutoffs = c(0.05, 0.01, 0.001),
-          add.lines = list(
-            c("County Fixed Effects", "Yes"),
-            c("Year Fixed Effects", "No"),
-            c("Clustered SE", "County")
-          ))
-```
+This model specification allows us to examine how changes in natural disaster events within a county relate to changes in homeowner costs, while controlling for other relevant factors and accounting for county-specific characteristics. The use of logarithmic transformations helps us interpret the relationships in terms of percentage changes and helps address potential non-linearities in the relationships between variables.
 
 # Linear Model 
 
@@ -656,79 +603,6 @@ model_2_plot <- ggplot(data = main_set, aes(
 model_2_plot
 ```
 
-Create lag:
-
-```{r}
-
-main_set <- main_set %>%
-  mutate(ending_fips_ovr = sub("^[^_]*_","",fips_ovr))%>%
-  select(ending_fips_ovr, everything())
-
-
-panel_main_set <- main_set %>%
-  arrange(fips_ovr, year) %>%   
-  group_by(fips_ovr) %>%      
-  mutate(
-    lag_events = lag(total_events, n = 1) )%>%
-    select(lag_events, year, total_events, fips_ovr, everything())%>%
-    ungroup()
-
-panel_main_set <- panel_main_set %>%
-    mutate(log_owner_cost_median=log(owner_cost_median))
-
-pooled_ols_model2 <- plm(log_owner_cost_median ~lag_events, 
-                  data = panel_main_set,
-                  model="pooling")
-```
-
-# Introduction
-
-In recent years, the homeowners insurance market has been disrupted by more extreme weather events - increasing both in storm intensity and incidence - which has made the provision of this insurance unprofitable in many states, resulting in rate hikes or the cessation of coverage altogether \cite{latimes2024insurancecrisis, nyt2023climateinsurance, nyt2024climateinsurancehomes, nyt2024insurancepremiums}. Major insurers State Farm, Farmers, and Allstate have all pulled out of providing homeowners insurance in California. State Farm, previously the largest homeowners insurer in the state, cited “historic increases in construction costs outpacing inflation, rapidly growing catastrophe exposure, and a challenging reinsurance market” when they announced this change in 2023 \cite{statefarm2023california}. In this study, we search for evidence of the second reason by examining whether severe storm event data is correlated with homeowners reported insurance costs. 
-
-# Literature Review
-
-Since extreme weather events are expected to increase in intensity and incidence as climate change worsens, this issue will likely only get worse \cite{ipcc2021chapter11}. However, it is difficult to obtain data on homeowners insurance costs, as state insurance regulators have neglected to collect this data from insurance companies, so it is not possible to see exactly how much these premiums have changed over time, besides relying on anecdotal reports from homeowners \cite{nyt2024naichurdles}.
-\cite{Kousky2019role} in a review of disaster insurance markets, points out that while natural disaster losses have been increasing worldwide, there is surprisingly little empirical research on how these events affect insurance costs. This limitation in research is particularly notable when studying the relationship between extreme weather events and homeowner insurance costs, making it difficult to understand how increases in storm frequency might influence insurance markets over time.
-
-In order to integrate citations into the References section below, we add entries into our file `main.bib`. This is a plain-text file that we edit in RStudio (or BibDesk, or similar). We store `main.bib` in the same folder as our paper's `.qmd` and `.pdf` files. Its entries are formatted so that they can be knit to `.pdf`; see [https://j.mp/2UzTXEZ](https://www.overleaf.com/learn/latex/Bibliography_management_with_bibtex#The_bibliography_file) for example entries for articles, books, and miscellaneous. We can get these entries automatically from Google Scholar by turning on BibTeX in the Google Scholar Settings - Bibliography Manager. Perhaps we use a tool like free, open-source BibDesk to help us manage the `.bib` file.
-
-# Data {#sec-data}
-
-We choose two separate datasets to examine this problem. To estimate homeowner insurance costs, we use the American Community Survey, which is part of the US Census and is administered five years. Our unit of analysis is county-year, to estimate the variation in monthly homeowner costs across geography and time.
-
-Our county-level census data comes from the American Community Survey (ACS) 5-year estimates, accessed through the Census Bureau's API. We collect data for three distinct, yearlong periods: 2013, 2018, and 2023. For each county, we extract several housing-related variables including the median monthly owner costs, median house value, median household income, and average household size. The county identification is based on FIPS (Federal Information Processing Standards) codes, which consist of a two-digit state code and a up-to-three-digit county code.
-
-To ensure comparability across different time periods, all monetary values are adjusted for inflation using price indices (with 2023 as the base year, applying indices of 0.765 for 2013 and 0.824 for 2018). Monthly owner costs are annualized by multiplying by 12. The final dataset is created by combining data from all three time periods and organizing it by state, county, and year.
-
-Our dataset includes several key variables: total number of housing units, units with and without mortgages, average household size, median household income, median house value, and median monthly owner costs (separated into categories for properties with and without mortgages). We also collect data on owner costs as a percentage of yearly income, both overall and separated by mortgage status. County names are standardized by removing suffixes such as "County," "Census Area," "Municipio," "Parish," "Borough," "Planning Region," and "City" to ensure consistency across different naming jurisdictions.
-
-It is important to note that while the 2023 ACS included a separate variable for homeowner insurance, this is not available in some years' surveys. In surveys prior to 2023, homeowner fire, hazard, and flood insurance costs are incorporated into a broader measure called "Selected Monthly Owner Costs," which also encompassed real estate taxes, mortgages, utilities, and fuels. To account for these varying components, we include house value in our model as a proxy for real estate taxes and mortgage costs, while household size is included to capture variation in utility and fuel costs.
-
-
-Our weather event data is obtained from the National Oceanic and Atmospheric Administration (NOAA) through Google Cloud's BigQuery platform. We access the public dataset 'bigquery-public-data.noaa_historic_severe_storms.storms' using Python's BigQuery client library. To establish the connection, we create a service account and associated credentials file that allows secure access to the Google Cloud API.
-
-The query extracts yearly event data at the county level, including state and county FIPS codes for precise geographic identification. For each county, we collect the number of occurrences of different types of severe weather events. The initial format of the NOAA data presents individual reports of specific weather events by county and year (for example, one row would read as "King County, Washington had 4 reports of debris flow in 2013"). To make this data more amenable to analysis, we transform it using a pivot_wider() function to create a format where each county-year combination represents a single row. We then aggregate all event reports for each county-year into a total event count, which serves as our primary measure of severe weather activity in our analysis.
-
-The data is organized by year, state, and county, with corresponding FIPS codes to ensure accurate matching with our census data. The query groups events by these geographic identifiers and event type, providing a comprehensive count of different severe weather occurrences for each location and time period. This structured approach allows us to create a consistent dataset that can be merged with our housing cost data for subsequent analysis.
-
-# Methods
-
-We merge NOAA data and ACS data using a Full Join, based on a combination of county names and Federal Information Processing Standard (FIPS) geographic codes.  This allows for counties with the same name but different geographies (for example, there are 25 Jefferson counties in the United States) to not merge any data.
-
-Once we have this main, joined dataset, we are able to run statistical analyses.  Wanting to check 2013 weather events’ possible effects on 2018’s homeowner costs in Clark County, Kentucky – as one of many examples – we also make a shifted dataset.  This set includes a new variable that applied a positive 5-year shift on NOAA data, allowing for easy modeling based on – again, as one example – 2018 weather reporting on 2023 costs by county.
-
-The unshifted linear model uses the unshifted weather data to predict housing costs in the same year: 2013 costs by 2013 weather events in each county, 2018 costs by 2018 weather events in each county, and 2023 costs by 2023 weather events in each county.  The model begins with an intercept of $11,777.40 and predicts a decrease of $1.96 in annual housing costs for each extreme weather event in the county.  This model is statistically significant, with a p-value of 0.0007; the linear model has an adjusted R-squared that is effectively 0.
-
-The shifted linear model uses the shifted dataset to predict housing costs 5 years later: 2018 costs by 2013 weather events in each county and 2023 costs by 2018 weather events in each county.  The model begins with an intercept of $11,351.34 and predicts a decrease of $1.31 in annual housing costs for each extreme weather event in the county five years previous.  This model is not statistically significant, with a p-value of 0.0536; the model also has an adjusted R-squared that is approaching 0.
-
-We also estimate a fixed effect model to explore how homeowner costs relate to natural disaster events within each state over time. Our regression equation is structured as:
-
-Yti = BXti + fixed effects
-
-In this equation, Yti represents the logarithm of median owner cost in county i at time t. The explanatory variables Xti include our main variable of interest - the logarithm of total number of events - along with the following control variables: the logarithm of median house value and the average household size at the county level. The fixed effects component captures county-specific characteristics that remain constant over time. By using fixed effects at the county level, we control for time-invariant factors specific to each county that might influence homeowner costs.
-
-This model specification allows us to examine how changes in natural disaster events within a county relate to changes in homeowner costs, while controlling for other relevant factors and accounting for county-specific characteristics. The use of logarithmic transformations helps us interpret the relationships in terms of percentage changes and helps address potential non-linearities in the relationships between variables.
-
 # Results
 
 Our analysis using fixed effects models reveals some patterns in how natural disasters relate to homeowner costs. The fe_model2 shows a slight positive relationship between the logarithm of total events and homeowner costs when looking at changes within counties, though this relationship is not statistically significant. Interestingly, fe_model2 also shows that the log of median house value has a negative correlation with owner costs, which contradicts what prior research would typically expect.
@@ -736,6 +610,106 @@ Our analysis using fixed effects models reveals some patterns in how natural dis
 When we examine fe_model4, which uses the lag of the logarithm of total events to predict the current logarithm of median owner cost, we find a negative relationship. This unexpected finding suggests that either our model specification is not capturing the true relationship or that there are underlying factors we have not considered. It is important to note that using the lagged variable in fe_model4 results in losing approximately one-third of our data points (2013 housing data and 2024 weather event data), while still maintaining a separate predictor for each county in our fixed effects estimation.
 
 Our LASSO analysis provides additional insights. In this model, the log_total_events variable shrinks to zero, indicating it may not be as strong a predictor as initially thought. The LASSO approach estimates most of the fixed effects for the counties, suggesting that county-specific characteristics play a significant role in determining homeowner costs. This comprehensive analysis raises questions about the true nature of the relationship between natural disasters and homeowner costs, and suggests we might need to explore additional factors or alternative model specifications.
+
+# Models and Analyses
+# Panel
+```{r}
+
+#write_xlsx(main_set, "Data/main_set.xlsx")
+
+# Create panel data structure
+panel_data <- main_set %>%
+  arrange(fips_ovr, year) %>%
+  group_by(fips_ovr) %>%
+  mutate(
+    total_events_lagged = dplyr::lag(total_events),
+    log_owner_cost = log(owner_cost_median),
+    log_total_events = log(total_events+1),
+    log_total_events_lagged = log(total_events_lagged+1),
+    log_house_value_median = log(house_value_median),
+    log_income_median = log(income_median),
+    log_household_size_average = log(household_size_average)
+  ) %>%
+  select(fips_ovr, year, owner_cost_median, total_events,
+         total_events_lagged, everything()) |>
+  ungroup()
+panel_data_plm <- pdata.frame(panel_data, index = c("fips_ovr", "year"))
+```
+
+# fixed effects model
+```{r}
+fe_model1 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
+                log_income_median + log_household_size_average, 
+                data = panel_data_plm,
+                model = "within")
+
+fe_model2 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
+                log_household_size_average, 
+                data = panel_data_plm,
+                model = "within")
+
+fe_model3 <- plm(log_owner_cost ~ log_total_events + log_house_value_median,
+                data = panel_data_plm,
+                model = "within")
+
+fe_model4 <- plm(log_owner_cost ~ log_total_events_lagged + log_house_value_median,
+                data = panel_data_plm,
+                model = "within")
+
+fe_model <- fe_model4
+
+clustered_results <- coeftest(fe_model, vcov = vcovHC(fe_model, type = "HC1", cluster = "group"))
+print(clustered_results)
+```
+
+# Lasso model
+```{r}
+
+# First, create the matrix of fixed effects
+# Convert county IDs to dummy variables
+county_dummies <- model.matrix(~ factor(fips_ovr) - 1, data = panel_data_plm)
+
+# Create matrix of other predictors
+X <- model.matrix(~ log_total_events + log_house_value_median - 1, 
+                 data = panel_data_plm)
+
+# Combine predictors and fixed effects
+X_full <- cbind(X, county_dummies)
+
+# Response variable
+y <- panel_data_plm$log_owner_cost
+
+# Fit LASSO model with cross-validation
+cv_lasso <- cv.glmnet(X_full, y, alpha = 1)
+
+# Fit final model with optimal lambda
+lasso_model <- glmnet(X_full, y, alpha = 1, lambda = cv_lasso$lambda.min)
+
+# View coefficients
+coef(lasso_model)
+```
+
+# Presentation
+```{r}
+
+stargazer(fe_model, 
+          type = "text",  # Use "html" or "latex" for other formats
+          title = "Fixed Effects Regression Results",
+          covariate.labels = c("Log Total Events",
+                             "Log House Value",
+                             "Log Household Size"),
+          dep.var.labels = "Log Owner Cost",
+          digit.separator = ",",
+          digits = 3,
+          model.numbers = FALSE,
+          se = sqrt(diag(vcovHC(fe_model, type = "HC1", cluster = "group"))), # Use clustered SE
+          star.cutoffs = c(0.05, 0.01, 0.001),
+          add.lines = list(
+            c("County Fixed Effects", "Yes"),
+            c("Year Fixed Effects", "No"),
+            c("Clustered SE", "County")
+          ))
+```
 
 # Discussion
 
