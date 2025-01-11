@@ -8,4 +8,4 @@ Welcome to our final project repo!
 <p>
 Best,
 
-*Ryan, Natalie, and Ehsan*
+**Ryan, Natalie, and Ehsan**
