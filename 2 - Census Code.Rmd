@@ -1,128 +1,117 @@
 ---
-title: "Title for Group"
+title: "Main Code for Winter Institute Project: Extreme Weather Events and Homeowner Costs"
 author: "Ehsan Habibpour, Natalie Short, and Ryan Altman"
-date: today
-output: pdf_document
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE)
 ```
 
-
 # Load necessary libraries
 
 ```{r}
+library(tidyverse)
 library(tidycensus)
 library(dplyr)
 library(tidyr)
 library(writexl)
 library(readr)
 library(stringr)
+library(plm)
+library(ggplot2)
+library(plm)
+library(lmtest)
+library(sandwich)
+library(stargazer)
+library(glmnet)
+library(Matrix)
 ```
 
-
-## R Code 	
 ```{r}
-year_tg <- 2023
+# get census data
+get_census_year_data <- function(year_tg, price_index, nt = 2) {
+  # Define variables
+  variables <- c(
+    houseowners_total = "B25087_001E", #Housing units
+    houseowners_with_mortgage = "B25087_002E", #Housing units with a mortgage
+    houseowners_without_mortgage = "B25087_020E", #Housing units without a mortgage
+    household_size_average = "B25010_001E", #Average Household Size
+    income_median = "B19013_001E", #Median household income in the past 12 months
+    house_value_median = "B25077_001E", #Median Value
+    owner_cost_median = "B25088_001E", #Median selected monthly owner costs
+    owner_cost_median_with_mortgage = "B25088_002E", #same with mortgage
+    owner_cost_median_without_mortgage = "B25088_003E", #same without mortgage
+    owner_cost_to_income_median = "B25092_001E", #sama as a percentage of yearly income
+    owner_cost_to_income_median_with_mortgage = "B25092_002E", #same with mortgage
+    owner_cost_to_income_median_without_mortgage = "B25092_003E" #same without mortgage
+  )
 
-# Set your Census API key
-census_api_key("3504e2e4186afe0b674a6f3f54caefd9ef3af8d9", install = TRUE, overwrite=TRUE)
-#census_api_key("34777786635d1f4f42107118005896f09cde55e1", install = TRUE, overwrite=TRUE)
+  census_data <- get_acs(
+    geography = "county",
+    variables = variables,
+    year = year_tg,
+    survey = "acs5",
+    output = "wide"
+  )
 
-## Use `load_variables()` function to explore more variables if needed
-codelists <- load_variables(year_tg, "acs5", cache = TRUE)
+  # Process data
+  census_data <- census_data %>%
+    select(GEOID, NAME, all_of(names(variables))) %>%
+    mutate(
+      state_fips = as.numeric(substr(GEOID, 1, 2)),    # Extract first 2 digits for state FIPS
+      county_fips = as.numeric(substr(GEOID, 3, 5)),   # Extract last 3 digits for county FIPS
+      state = sub(".*,\\s*", "", NAME),
+      county = sub(",\\s*[^,]*$", "", NAME)
+    ) %>%
+    mutate(
+      county = str_remove(county, " County$"),
+      county = str_remove(county, " Census Area$"),
+      county = str_remove(county, " Municipio$"),
+      county = str_remove(county, " Parish$"),
+      county = str_remove(county, " Borough$"),
+      county = str_remove(county, " Planning Region$"),
+      county = str_remove(county, " city$")
+    ) %>%
+    mutate(
+      income_median = income_median/price_index,
+      house_value_median = house_value_median/price_index,
+      owner_cost_median = owner_cost_median * 12/price_index,
+      owner_cost_median_with_mortgage = owner_cost_median_with_mortgage * 12/price_index,
+      owner_cost_median_without_mortgage = owner_cost_median_without_mortgage * 12/price_index,
+      year = year_tg
+    ) %>%
+    select(
+      GEOID, state_fips, county_fips, state, county, year, houseowners_total,
+      houseowners_with_mortgage, houseowners_without_mortgage, household_size_average,
+      house_value_median, owner_cost_median, income_median,
+      owner_cost_median_with_mortgage, owner_cost_median_without_mortgage,
+      owner_cost_to_income_median, owner_cost_to_income_median_with_mortgage,
+      owner_cost_to_income_median_without_mortgage
+    )
+  
+  return(census_data)
+}
 
-#################################################################################
-variables <- c(
-  HIC_total = "B25141_001E",
-  HIC_with_mortgage = "B25141_002E",
-  HIC_with_mortgage_50 = "B25141_003E",
-  HIC_with_mortgage_200 = "B25141_004E",
-  HIC_with_mortgage_400 = "B25141_005E",
-  HIC_with_mortgage_650 = "B25141_006E",
-  HIC_with_mortgage_900 = "B25141_007E",
-  HIC_with_mortgage_1250 = "B25141_008E",
-  HIC_with_mortgage_1750 = "B25141_009E",
-  HIC_with_mortgage_2250 = "B25141_010E",
-  HIC_with_mortgage_2750 = "B25141_011E",
-  HIC_with_mortgage_3250 = "B25141_012E",
-  HIC_with_mortgage_3750 = "B25141_013E",
-  HIC_with_mortgage_m4000 = "B25141_014E",
-  HIC_without_mortgage = "B25141_015E",
-  HIC_without_mortgage_50 = "B25141_016E",
-  HIC_without_mortgage_200 = "B25141_017E",
-  HIC_without_mortgage_400 = "B25141_018E",
-  HIC_without_mortgage_650 = "B25141_019E",
-  HIC_without_mortgage_900 = "B25141_020E",
-  HIC_without_mortgage_1250 = "B25141_021E",
-  HIC_without_mortgage_1750 = "B25141_022E",
-  HIC_without_mortgage_2250 = "B25141_023E",
-  HIC_without_mortgage_2750 = "B25141_024E",
-  HIC_without_mortgage_3250 = "B25141_025E",
-  HIC_without_mortgage_3750 = "B25141_026E",
-  HIC_without_mortgage_m4000 = "B25141_027E",
-  MOR_total = "B25096_001E",
-  MOR_with = "B25096_002E",
-  MOR_with_25000 = "B25096_003E",
-  MOR_with_75000 = "B25096_004E",
-  MOR_with_125000 = "B25096_005E",
-  MOR_with_175000 = "B25096_006E",
-  MOR_with_250000 = "B25096_007E",
-  MOR_with_400000 = "B25096_008E",
-  MOR_with_625000 = "B25096_009E",
-  MOR_with_875000 = "B25096_010E",
-  MOR_with_m1000000 = "B25096_011E",
-  MOR_without = "B25096_012E",
-  MOR_without_25000 = "B25096_013E",
-  MOR_without_75000 = "B25096_014E",
-  MOR_without_125000 = "B25096_015E",
-  MOR_without_175000 = "B25096_016E",
-  MOR_without_250000 = "B25096_017E",
-  MOR_without_400000 = "B25096_018E",
-  MOR_without_625000 = "B25096_019E",
-  MOR_without_875000 = "B25096_020E",
-  MOR_without_m1000000 = "B25096_021E"
+# Get data for each year
+census_data_2023 <- get_census_year_data(2023, 1) 
+census_data_2018 <- get_census_year_data(2018, 0.824)
+census_data_2013 <- get_census_year_data(2013, 0.765)
+
+# Combine all years into one dataset
+census_data_total <- bind_rows(
+  census_data_2023,
+  census_data_2018,
+  census_data_2013
 )
 
-census_data <- get_acs(
-  geography = "county",
-  variables = variables,
-  year = year_tg,
-  survey = "acs5", # Use 5-year ACS data
-  output = "wide"
-)
-
-################################
-# Extract the variable names
-variable_columns <- names(variables)
-
-# Keep only the specified variables and the 'NAME' column for county names
-census_data <- census_data %>%
-  select(NAME, all_of(variable_columns))
-```
-
-```{r}
-# Extracting States and creating a new variable
-census_data$state <- sub(".*,\\s*", "", census_data$NAME) # Gets everything after the last comma
-census_data$county <- sub(",\\s*[^,]*$", "", census_data$NAME) # Gets everything before the last comma
-
-# Then remove "County" if it exists at the end
-census_data$county <- sub(" County$", "", census_data$county)
-census_data$county <- sub(" Census Area$", "", census_data$county)
-census_data$county <- sub(" Municipio$", "", census_data$county)
-census_data$county <- sub(" Parish$", "", census_data$county)
-census_data$county <- sub(" Borough$", "", census_data$county)
-census_data$county <- sub(" Planning Region$", "", census_data$county)
-census_data$county <- sub(" city$", "", census_data$county)
-```
-
-```{r}
-# Move state and county back to the front
-
-census_data <- census_data |>
-  select(county, state, everything()) |>
-  select(-"NAME")
+# Sort the final dataset
+census_data_total <- census_data_total %>%
+  arrange(state, county, year)
 ```
 
 NOAA storm and events data download:
@@ -130,32 +119,544 @@ NOAA storm and events data download:
 ```{r}
 noaa_data <- read_csv("Data/county_events.csv")
 noaa_data <- noaa_data |>
-  filter(year == 2018 | year == 2023)
+  filter(year == 2013 | year == 2018 | year == 2023)
 ```
 
-Joining the census and NOAA datasets:
+# Joining the census and NOAA datasets:
 
 ```{r}
 # Adjusting county names for a join
 
-census_data <- census_data |>
+census_data_total <- census_data_total |>
   mutate(county = str_to_upper(county, locale = "en")) |>
   group_by(state) |>
-  arrange(county, .by_group = TRUE)
+  arrange(county, .by_group = TRUE) |>
+  ungroup()
 
 # Pivoting the NOAA data so each county only appears once
 
 noaa_1_county <- noaa_data |>
-  pivot_wider(names_from = event_type, values_from = event_count, values_fill = 0,
-              id_cols = c("county", "state", "year")) |>
-  rename(state_bad = state) |>
-  group_by(state_bad) |>
-  arrange(county, .by_group = TRUE)
+  pivot_wider(names_from = event_type, values_from = event_count, 
+              values_fill = list(event_count = 0),
+              id_cols = c("state_fips_code", "cz_fips_code", "year", "state", "county"))
+
 ```
-Create lag 
+
 ```{r}
-library(dplyr)
-library(plm)
+
+noaa_1_county <- noaa_1_county |>
+  rename(state_bad = state) |>
+  mutate(total_events = rowSums(across(where(is.numeric))) - year) |>
+  group_by(state_fips_code) |>
+  arrange(county, .by_group = TRUE) |>
+  ungroup() |>
+  mutate(county_state = paste(county, state_fips_code, sep = " -- ")) |>
+  mutate(fips_ovr = paste(county, as.character(state_fips_code), as.character(cz_fips_code), sep = "__")) |>
+  select(county, fips_ovr, total_events, state_fips_code, county_state, year, everything())
+
+head(census_data_total)
+head(noaa_1_county)
+```
+
+### Splitting the NOAA event data by year -- not necessarily what we use, but it's good to have them split up.
+
+```{r}
+noaa_2013 <- noaa_1_county |>
+  filter(year == 2013)
+
+noaa_2018 <- noaa_1_county |>
+  filter(year == 2018)
+
+noaa_2023 <- noaa_1_county |>
+  filter(year == 2023)
+
+head(noaa_2013)
+head(noaa_2018)
+head(noaa_2023)
+```
+
+### Counting the number of counties in each 
+
+```{r}
+print("2013:")
+nrow(noaa_2013)
+print("2018:")
+nrow(noaa_2018)
+print("2023:")
+nrow(noaa_2023)
+```
+
+### Finding counties that only appear in one year.
+
+```{r}
+
+exclusive_counties_13 <- setdiff(noaa_2013$fips_ovr, noaa_2018$fips_ovr)
+exclusive_counties_13_23 <- setdiff(noaa_2013$fips_ovr, noaa_2023$fips_ovr)
+exclusive_counties_13_18_1 <- setdiff(noaa_2023$fips_ovr, noaa_2013$fips_ovr)
+exclusive_counties_13_23_1 <- setdiff(noaa_2018$fips_ovr, noaa_2013$fips_ovr)
+exclusive_counties_18 <- setdiff(noaa_2018$fips_ovr, noaa_2023$fips_ovr)
+exclusive_counties_23 <- setdiff(noaa_2023$fips_ovr, noaa_2018$fips_ovr)
+exclusive_counties <- c(exclusive_counties_13, exclusive_counties_13_23, 
+                        exclusive_counties_18, exclusive_counties_23,
+                        exclusive_counties_13_18_1, exclusive_counties_13_23_1)
+length(exclusive_counties)
+```
+
+```{r}
+noaa_2013_bothyearcounties <- noaa_2013 |>
+  filter(!(fips_ovr %in% exclusive_counties))
+
+noaa_2018_bothyearcounties <- noaa_2018 |>
+  filter(!(fips_ovr %in% exclusive_counties))
+  
+noaa_2023_bothyearcounties <- noaa_2023 |>
+    filter(!(fips_ovr %in% exclusive_counties))
+
+print("Checking the row count:")
+print(nrow(noaa_2013_bothyearcounties))
+print(nrow(noaa_2018_bothyearcounties))
+print(nrow(noaa_2023_bothyearcounties))
+```
+
+# Exploratory Data Analysis
+
+Are storms correlated b y county?
+
+```{r}
+ggplot(mapping = aes(
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
+)) +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018 | Total Events") +
+  ylab("2023 | Total Events") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'navy')) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 750), ylim = c(0, 750))
+```
+
+Let's zoom in on the majority of counties:
+
+```{r}
+ggplot(mapping = aes(
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
+)) +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018 | Total Events") +
+  ylab("2023 | Total Events") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'navy')) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 310), ylim = c(0, 310))
+```
+
+…and zoom in even closer:
+
+```{r}
+ggplot(mapping = aes(
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
+)) +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018 | Total Events") +
+  ylab("2023 | Total Events") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'navy')) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 150), ylim = c(0, 150))
+```
+
+A linear model for this relationship:
+
+```{r}
+model <- lm(noaa_2023_bothyearcounties$total_events ~ noaa_2018_bothyearcounties$total_events)
+summary(model)
+```
+2018 events and 2023 events are highly correlated by county, which makes sense because weather is generally stable within a 5-year period.  Overall, though, there is a very slight positive relationship between year-change and total events -- demonstrating climate change and the greater prevalence of extreme weather events.
+
+Delineating by event type:
+
+```{r}
+event_sum_bothyears <- noaa_1_county |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year", name != "total_events", name != "state_fips_code", name != "cz_fips_code") |>
+  rename(event_type = name)
+
+event_sum_2018 <- noaa_2018 |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year", name != "state_fips_code", name != "cz_fips_code") |>
+  rename(event_type = name)
+
+event_sum_2023 <- noaa_2023 |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year", name != "state_fips_code", name != "cz_fips_code") |>
+  rename(event_type = name)
+```
+
+Floods:
+
+```{r}
+
+floods <- c("flood", "flash flood", "coastal flood", "lakeshore flood")
+
+floods_bothyears <- event_sum_bothyears |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+floods_2018 <- event_sum_2018 |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+floods_2023 <- event_sum_2023 |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+summary(floods_bothyears)
+
+head(floods_bothyears)
+```
+
+```{r}
+
+census_data_total <- census_data_total |>
+  mutate(county = str_to_upper(county, locale = "en")) |>
+  mutate(fips_ovr = paste(county, as.character(state_fips), as.character(county_fips), sep = "__"))
+
+census2013 <- census_data_total |>
+  filter(year == 2013)
+
+census2018 <- census_data_total |>
+  filter(year == 2018)
+
+census2023 <- census_data_total |>
+  filter(year == 2023)
+
+exclusive_counties_census <- setdiff(census2023$county, noaa_2023_bothyearcounties$county)
+exclusive_counties_noaa <- setdiff(noaa_2023_bothyearcounties$county, census2023$county)
+exclusive_counties <- c(exclusive_counties_census, exclusive_counties_noaa)
+length(exclusive_counties)
+
+census2023_noaa2023 <-
+  full_join(noaa_2023_bothyearcounties, census2023, 
+            by = "fips_ovr")
+
+census2023_noaa2023 <- census2023_noaa2023 |>
+  filter(!(county.x %in% exclusive_counties)) |>
+  filter(!(county.y %in% exclusive_counties))
+```
+
+```{r}
+main_set <-
+  full_join(noaa_1_county, census_data_total,
+            by = join_by(year == year, fips_ovr == fips_ovr))
+
+main_set <- main_set |>
+  filter(!(county.x %in% exclusive_counties)) |>
+  filter(!(county.y %in% exclusive_counties)) |>
+  select(fips_ovr, state, year, total_events, owner_cost_median, everything()) |>
+  drop_na()
+```
+
+More EDA:
+
+```{r}
+cost_hist <- ggplot(data = main_set, aes(x = owner_cost_median)) +
+  geom_histogram(fill = 'darkred', binwidth = 300) +
+  theme_bw() +
+  labs(
+    title = "Median of Estimated Monthly Homeowner Costs",
+    subtitle = ("(with insurance)")
+  ) +
+  xlab("Owner Cost Median ($)") +
+  ylab("Number of US Counties")
+
+cost_hist
+```
+
+```{r}
+events_boxplot <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year))) +
+  geom_boxplot() +
+  labs(title = "Weather Events Sorted by Year") +
+  coord_flip() +
+  ylab("Year") +
+  xlab("Total Reported Severe Events") +
+  theme_bw()
+
+events_boxplot
+```
+
+```{r}
+events_boxplot_no_outliers <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year))) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_x_continuous(limits = quantile(main_set$total_events, c(0.1, 0.9))) +
+  labs(title = "Weather Events Sorted by Year", 
+       subtitle = "Outliers Removed") +
+  coord_flip() +
+  ylab("Year") +
+  xlab("Total Reported Severe Events") +
+  theme_bw()
+
+events_boxplot_no_outliers
+```
+
+```{r}
+events_violin <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year), fill = year)) +
+  geom_violin() +
+  xlab("Total Reported Severe Events (via NOAA)") +
+  ylab("Year") +
+  labs(title = "Weather Events Sorted by Year",
+       subtitle = ) +
+  theme_bw() +
+  theme(legend.position = "none",
+        title = element_text(color = 'maroon')) +
+  coord_flip()
+
+events_violin
+```
+
+# Models and Analyses
+# Panel
+```{r}
+
+#write_xlsx(main_set, "Data/main_set.xlsx")
+
+# Create panel data structure
+panel_data <- main_set %>%
+  arrange(fips_ovr, year) %>%
+  group_by(fips_ovr) %>%
+  mutate(
+    total_events_lagged = dplyr::lag(total_events),
+    log_owner_cost = log(owner_cost_median),
+    log_total_events = log(total_events+1),
+    log_total_events_lagged = log(total_events_lagged+1),
+    log_house_value_median = log(house_value_median),
+    log_income_median = log(income_median),
+    log_household_size_average = log(household_size_average)
+  ) %>%
+  select(fips_ovr, year, owner_cost_median, total_events,
+         total_events_lagged, everything()) |>
+  ungroup()
+panel_data_plm <- pdata.frame(panel_data, index = c("fips_ovr", "year"))
+```
+
+# fixed effects model
+```{r}
+fe_model1 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
+                log_income_median + log_household_size_average, 
+                data = panel_data_plm,
+                model = "within")
+
+fe_model2 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
+                log_household_size_average, 
+                data = panel_data_plm,
+                model = "within")
+
+fe_model3 <- plm(log_owner_cost ~ log_total_events + log_house_value_median,
+                data = panel_data_plm,
+                model = "within")
+
+fe_model4 <- plm(log_owner_cost ~ log_total_events_lagged + log_house_value_median,
+                data = panel_data_plm,
+                model = "within")
+
+fe_model <- fe_model4
+
+clustered_results <- coeftest(fe_model, vcov = vcovHC(fe_model, type = "HC1", cluster = "group"))
+print(clustered_results)
+```
+
+# Lasso model
+```{r}
+
+# First, create the matrix of fixed effects
+# Convert county IDs to dummy variables
+county_dummies <- model.matrix(~ factor(fips_ovr) - 1, data = panel_data_plm)
+
+# Create matrix of other predictors
+X <- model.matrix(~ log_total_events + log_house_value_median - 1, 
+                 data = panel_data_plm)
+
+# Combine predictors and fixed effects
+X_full <- cbind(X, county_dummies)
+
+# Response variable
+y <- panel_data_plm$log_owner_cost
+
+# Fit LASSO model with cross-validation
+cv_lasso <- cv.glmnet(X_full, y, alpha = 1)
+
+# Fit final model with optimal lambda
+lasso_model <- glmnet(X_full, y, alpha = 1, lambda = cv_lasso$lambda.min)
+
+# View coefficients
+coef(lasso_model)
+```
+
+# Presentation
+```{r}
+
+stargazer(fe_model, 
+          type = "text",  # Use "html" or "latex" for other formats
+          title = "Fixed Effects Regression Results",
+          covariate.labels = c("Log Total Events",
+                             "Log House Value",
+                             "Log Household Size"),
+          dep.var.labels = "Log Owner Cost",
+          digit.separator = ",",
+          digits = 3,
+          model.numbers = FALSE,
+          se = sqrt(diag(vcovHC(fe_model, type = "HC1", cluster = "group"))), # Use clustered SE
+          star.cutoffs = c(0.05, 0.01, 0.001),
+          add.lines = list(
+            c("County Fixed Effects", "Yes"),
+            c("Year Fixed Effects", "No"),
+            c("Clustered SE", "County")
+          ))
+```
+
+# Linear Model 
+
+```{r}
+model_1 <- lm(owner_cost_median ~ total_events, data = main_set)
+summary(model_1)
+```
+
+A graphical representation of the above:
+
+```{r}
+model_1_plot <- ggplot(data = main_set, aes(
+  x = total_events,
+  y = owner_cost_median,
+  color = cut(year, breaks = c(2012, 2014, 2017, 2019, 2022, 2024)),
+  alpha = 0.5
+)) +
+  geom_point() +
+  theme_bw() +
+  labs(title = "Major Weather Events' Effect on Costs") +
+  labs(subtitle = "By U.S. County, By Year") + 
+  xlab("Total Major Weather Events in Year") +
+  ylab("Owner Cost Median ($)") +
+  scale_color_manual(values = c('green', 'darkred', 'blue'), 
+                     labels = c("2013", "2018", "2023")) +
+  theme(legend.title = element_blank()) +
+  theme(plot.title = element_text(color = "navy")) +
+  theme(plot.subtitle = element_text(color = "navy")) +
+  guides(alpha = "none")
+
+model_1_plot
+```
+
+How about we fit a line of best fit on that?
+
+```{r}
+model_1_plot_lm <- model_1_plot +
+  geom_smooth(method = "lm", se = FALSE)
+
+model_1_plot_lm
+```
+
+Split the above plot into years:
+
+```{r}
+model_1_faceted_plot <- ggplot(data = main_set, aes(
+  x = total_events,
+  y = owner_cost_median,
+  color = cut(year, breaks = c(2012, 2014, 2017, 2019, 2022, 2024)),
+  alpha = 0.5
+)) +
+  geom_point() +
+  theme_bw() +
+  labs(title = "Major Weather Events' Effect on Costs") +
+  labs(subtitle = "By U.S. County Median, By Year") + 
+  xlab("Total Major Weather Events") +
+  ylab("Monthly Homeowner Costs (with insurance), $US") +
+  scale_color_manual(values = c('darkgreen', 'darkred', 'blue'), 
+                     labels = c("2013", "2018", "2023")) +
+  theme(legend.title = element_blank()) +
+  theme(plot.title = element_text(color = "goldenrod4")) +
+  theme(plot.subtitle = element_text(color = "goldenrod4")) +
+  theme(legend.position = "none") +
+  guides(alpha = "none") +
+  geom_smooth(method = "lm", se = FALSE, color = 'black') +
+  facet_wrap(~ year)
+
+model_1_faceted_plot
+```
+
+Shifting NOAA years to better plot effects YoY:
+
+```{r}
+
+noaa_1_county_shifted <- noaa_1_county |>
+  mutate(year_shift = year + 5) |>
+  rename(year_actual = year, year = year_shift) |>
+  filter(year != 2028, year != 2013)
+
+main_set_shifted <-
+  full_join(noaa_1_county_shifted, census_data_total,
+            by = join_by(year == year, fips_ovr == fips_ovr))
+
+main_set_shifted <- main_set_shifted |>
+  filter(!(county.x %in% exclusive_counties)) |>
+  filter(!(county.y %in% exclusive_counties)) |>
+  select(fips_ovr, state, year, year_actual, total_events, owner_cost_median, everything()) |>
+  drop_na()
+```
+
+```{r}
+model_2 <- lm(owner_cost_median ~ total_events, data = main_set_shifted)
+summary(model_2)
+```
+
+```{r}
+model_2_plot <- ggplot(data = main_set, aes(
+  x = total_events,
+  y = owner_cost_median,
+  color = cut(year, breaks = c(2017, 2019, 2022, 2024)),
+  alpha = 0.5
+)) +
+  geom_point() +
+  theme_bw() +
+  labs(title = "Major Weather Events' Effect on Costs") +
+  labs(subtitle = "By U.S. County, By Year") + 
+  xlab("Total Major Weather Events in Year, 5 Years Before") +
+  ylab("Owner Cost Median ($)") +
+  scale_color_manual(values = c('red', 'orange'), 
+                     labels = c("2018", "2023")) +
+  theme(legend.title = element_blank()) +
+  theme(plot.title = element_text(color = "navy")) +
+  theme(plot.subtitle = element_text(color = "navy")) +
+  guides(alpha = "none")
+
+model_2_plot
+```
+
+Create lag:
+
+```{r}
 
 main_set <- main_set %>%
   mutate(ending_fips_ovr = sub("^[^_]*_","",fips_ovr))%>%
@@ -176,3 +677,4 @@ panel_main_set <- panel_main_set %>%
 pooled_ols_model2 <- plm(log_owner_cost_median ~lag_events, 
                   data = panel_main_set,
                   model="pooling")
+```
