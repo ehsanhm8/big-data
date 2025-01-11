@@ -427,3 +427,4 @@ panel_main_set <- panel_main_set %>%
 pooled_ols_model2 <- plm(log_owner_cost_median ~lag_events, 
                   data = panel_main_set,
                   model="pooling")
+```
