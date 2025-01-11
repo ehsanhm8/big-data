@@ -374,6 +374,71 @@ main_set <- main_set |>
   drop_na()
 ```
 
+
+#################################################### Panel
+```{r}
+library(lmtest)
+library(sandwich)
+#write_xlsx(main_set, "Data/main_set.xlsx")
+
+# Create panel data structure
+panel_data <- main_set %>%
+  arrange(fips_ovr, year) %>%
+  group_by(fips_ovr) %>%
+  mutate(
+    total_events_lagged = dplyr::lag(total_events),
+    log_owner_cost = log(owner_cost_median),
+    log_total_events = log(total_events+1),
+    log_total_events_lagged = log(total_events_lagged+1),
+    log_house_value_median = log(house_value_median),
+    log_income_median = log(income_median),
+    log_household_size_average = log(household_size_average)
+  ) %>%
+  select(fips_ovr, year, owner_cost_median, total_events,
+         total_events_lagged, everything()) |>
+  ungroup()
+panel_data_plm <- pdata.frame(panel_data, index = c("fips_ovr", "year"))
+
+####### fixed effects model
+```{r}
+fe_model1 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
+                log_income_median + log_household_size_average, 
+                data = panel_data_plm,
+                model = "within")
+
+fe_model2 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
+                log_household_size_average, 
+                data = panel_data_plm,
+                model = "within")
+
+fe_model <- fe_model2
+
+clustered_results <- coeftest(fe_model, vcov = vcovHC(fe_model, type = "HC1", cluster = "group"))
+print(clustered_results)
+```
+
+######## Presentation
+```{r}
+library(stargazer)
+stargazer(fe_model, 
+          type = "text",  # Use "html" or "latex" for other formats
+          title = "Fixed Effects Regression Results",
+          covariate.labels = c("Log Total Events",
+                             "Log House Value",
+                             "Log Household Size"),
+          dep.var.labels = "Log Owner Cost",
+          digit.separator = ",",
+          digits = 3,
+          model.numbers = FALSE,
+          se = sqrt(diag(vcovHC(fe_model, type = "HC1", cluster = "group"))), # Use clustered SE
+          star.cutoffs = c(0.05, 0.01, 0.001),
+          add.lines = list(
+            c("County Fixed Effects", "Yes"),
+            c("Year Fixed Effects", "No"),
+            c("Clustered SE", "County")
+          ))
+```
+
 # Models and Analyses
 
 ```{r}
