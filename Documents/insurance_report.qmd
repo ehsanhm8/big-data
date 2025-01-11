@@ -664,27 +664,19 @@ print(clustered_results)
 Lasso model
 ```{r}
 
-# First, create the matrix of fixed effects
-# Convert county IDs to dummy variables
 county_dummies <- model.matrix(~ factor(fips_ovr) - 1, data = panel_data_plm)
 
-# Create matrix of other predictors
 X <- model.matrix(~ log_total_events + log_house_value_median - 1, 
                  data = panel_data_plm)
 
-# Combine predictors and fixed effects
 X_full <- cbind(X, county_dummies)
 
-# Response variable
 y <- panel_data_plm$log_owner_cost
 
-# Fit LASSO model with cross-validation
 cv_lasso <- cv.glmnet(X_full, y, alpha = 1)
 
-# Fit final model with optimal lambda
 lasso_model <- glmnet(X_full, y, alpha = 1, lambda = cv_lasso$lambda.min)
 
-# View coefficients
 coef(lasso_model)
 ```
 
