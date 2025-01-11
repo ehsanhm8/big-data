@@ -249,21 +249,14 @@ The query extracts yearly event data at the county level, including state and co
 
 The data is organized by year, state, and county, with corresponding FIPS codes to ensure accurate matching with our census data. The query groups events by these geographic identifiers and event type, providing a comprehensive count of different severe weather occurrences for each location and time period. This structured approach allows us to create a consistent dataset that can be merged with our housing cost data for subsequent analysis.
 
-# Methods
-
-We merge NOAA data and ACS data using a Full Join, based on a combination of county names and Federal Information Processing Standard (FIPS) geographic codes.  This allows for counties with the same name but different geographies (for example, there are 25 Jefferson counties in the United States) to not merge any data.
-
-Once we have this main, joined dataset, we are able to run statistical analyses.  Wanting to check 2013 weather events’ possible effects on 2018’s homeowner costs in Clark County, Kentucky – as one of many examples – we also make a shifted dataset.  This set includes a new variable that applied a positive 5-year shift on NOAA data, allowing for easy modeling based on – again, as one example – 2018 weather reporting on 2023 costs by county.
-
-The unshifted linear model uses the unshifted weather data to predict housing costs in the same year: 2013 costs by 2013 weather events in each county, 2018 costs by 2018 weather events in each county, and 2023 costs by 2023 weather events in each county.  The model begins with an intercept of $11,777.40 and predicts a decrease of $1.96 in annual housing costs for each extreme weather event in the county.  This model is statistically significant, with a p-value of 0.0007; the linear model has an adjusted R-squared that is effectively 0.
-
-The shifted linear model uses the shifted dataset to predict housing costs 5 years later: 2018 costs by 2013 weather events in each county and 2023 costs by 2018 weather events in each county.  The model begins with an intercept of $11,351.34 and predicts a decrease of $1.31 in annual housing costs for each extreme weather event in the county five years previous.  This model is not statistically significant, with a p-value of 0.0536; the model also has an adjusted R-squared that is approaching 0.
-
-# Exploratory Data Analysis
+Exploratory Data Analysis
 
 Are storms correlated b y county?
 
 ```{r}
+#| echo: false
+#| message: false
+
 ggplot(mapping = aes(
   x = noaa_2018_bothyearcounties$total_events,
   y = noaa_2023_bothyearcounties$total_events,
@@ -284,6 +277,9 @@ ggplot(mapping = aes(
 Let's zoom in on the majority of counties:
 
 ```{r}
+#| echo: false
+#| message: false
+
 ggplot(mapping = aes(
   x = noaa_2018_bothyearcounties$total_events,
   y = noaa_2023_bothyearcounties$total_events,
@@ -304,6 +300,9 @@ ggplot(mapping = aes(
 …and zoom in even closer:
 
 ```{r}
+#| echo: false
+#| message: false
+
 ggplot(mapping = aes(
   x = noaa_2018_bothyearcounties$total_events,
   y = noaa_2023_bothyearcounties$total_events,
@@ -324,6 +323,9 @@ ggplot(mapping = aes(
 A linear model for this relationship:
 
 ```{r}
+#| echo: false
+#| message: false
+
 model <- lm(noaa_2023_bothyearcounties$total_events ~ noaa_2018_bothyearcounties$total_events)
 summary(model)
 ```
@@ -332,6 +334,9 @@ summary(model)
 Delineating by event type:
 
 ```{r}
+#| echo: false
+#| message: false
+
 event_sum_bothyears <- noaa_1_county |>
   select(-c(county, state_bad, county_state, fips_ovr)) |>
   pivot_longer(cols = everything()) |>
@@ -360,6 +365,8 @@ event_sum_2023 <- noaa_2023 |>
 Floods:
 
 ```{r}
+#| echo: false
+#| message: false
 
 floods <- c("flood", "flash flood", "coastal flood", "lakeshore flood")
 
@@ -381,6 +388,8 @@ head(floods_bothyears)
 ```
 
 ```{r}
+#| echo: false
+#| message: false
 
 census_data_total <- census_data_total |>
   mutate(county = str_to_upper(county, locale = "en")) |>
@@ -410,6 +419,9 @@ census2023_noaa2023 <- census2023_noaa2023 |>
 ```
 
 ```{r}
+#| echo: false
+#| message: false
+
 main_set <-
   full_join(noaa_1_county, census_data_total,
             by = join_by(year == year, fips_ovr == fips_ovr))
@@ -424,6 +436,9 @@ main_set <- main_set |>
 More EDA:
 
 ```{r}
+#| echo: false
+#| message: false
+
 cost_hist <- ggplot(data = main_set, aes(x = owner_cost_median)) +
   geom_histogram(fill = 'darkred', binwidth = 300) +
   theme_bw() +
@@ -438,6 +453,9 @@ cost_hist
 ```
 
 ```{r}
+#| echo: false
+#| message: false
+
 events_boxplot <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year))) +
   geom_boxplot() +
   labs(title = "Weather Events Sorted by Year") +
@@ -450,6 +468,9 @@ events_boxplot
 ```
 
 ```{r}
+#| echo: false
+#| message: false
+
 events_boxplot_no_outliers <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year))) +
   geom_boxplot(outlier.shape = NA) +
   scale_x_continuous(limits = quantile(main_set$total_events, c(0.1, 0.9))) +
@@ -464,6 +485,9 @@ events_boxplot_no_outliers
 ```
 
 ```{r}
+#| echo: false
+#| message: false
+
 events_violin <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year), fill = year)) +
   geom_violin() +
   xlab("Total Reported Severe Events (via NOAA)") +
@@ -477,6 +501,16 @@ events_violin <- ggplot(data = main_set, aes(x = total_events, y = as.factor(yea
 
 events_violin
 ```
+
+# Methods
+
+We merge NOAA data and ACS data using a Full Join, based on a combination of county names and Federal Information Processing Standard (FIPS) geographic codes.  This allows for counties with the same name but different geographies (for example, there are 25 Jefferson counties in the United States) to not merge any data.
+
+Once we have this main, joined dataset, we are able to run statistical analyses.  Wanting to check 2013 weather events’ possible effects on 2018’s homeowner costs in Clark County, Kentucky – as one of many examples – we also make a shifted dataset.  This set includes a new variable that applied a positive 5-year shift on NOAA data, allowing for easy modeling based on – again, as one example – 2018 weather reporting on 2023 costs by county.
+
+The unshifted linear model uses the unshifted weather data to predict housing costs in the same year: 2013 costs by 2013 weather events in each county, 2018 costs by 2018 weather events in each county, and 2023 costs by 2023 weather events in each county.  The model begins with an intercept of $11,777.40 and predicts a decrease of $1.96 in annual housing costs for each extreme weather event in the county.  This model is statistically significant, with a p-value of 0.0007; the linear model has an adjusted R-squared that is effectively 0.
+
+The shifted linear model uses the shifted dataset to predict housing costs 5 years later: 2018 costs by 2013 weather events in each county and 2023 costs by 2018 weather events in each county.  The model begins with an intercept of $11,351.34 and predicts a decrease of $1.31 in annual housing costs for each extreme weather event in the county five years previous.  This model is not statistically significant, with a p-value of 0.0536; the model also has an adjusted R-squared that is approaching 0.
 
 We also estimate a fixed effect model to explore how homeowner costs relate to natural disaster events within each state over time. Our regression equation is structured as:
 
