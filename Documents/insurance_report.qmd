@@ -711,7 +711,6 @@ cv_lasso <- cv.glmnet(X_full, y, alpha = 1)
 
 lasso_model <- glmnet(X_full, y, alpha = 1, lambda = cv_lasso$lambda.min)
 
-coef(lasso_model)
 ```
 
 Presentation
