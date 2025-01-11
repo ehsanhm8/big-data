@@ -378,7 +378,7 @@ More EDA:
 
 ```{r}
 cost_hist <- ggplot(data = main_set, aes(x = owner_cost_median)) +
-  geom_histogram(fill = 'darkred') +
+  geom_histogram(fill = 'darkred', binwidth = 300) +
   theme_bw() +
   labs(
     title = "Median of Estimated Monthly Homeowner Costs",
@@ -414,6 +414,21 @@ events_boxplot_no_outliers <- ggplot(data = main_set, aes(x = total_events, y = 
   theme_bw()
 
 events_boxplot_no_outliers
+```
+
+```{r}
+events_violin <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year), fill = year)) +
+  geom_violin() +
+  xlab("Total Reported Severe Events (via NOAA)") +
+  ylab("Year") +
+  labs(title = "Weather Events Sorted by Year",
+       subtitle = ) +
+  theme_bw() +
+  theme(legend.position = "none",
+        title = element_text(color = 'maroon')) +
+  coord_flip()
+
+events_violin
 ```
 
 # Models and Analyses
@@ -558,6 +573,35 @@ model_1_plot_lm <- model_1_plot +
   geom_smooth(method = "lm", se = FALSE)
 
 model_1_plot_lm
+```
+
+Split the above plot into years:
+
+```{r}
+model_1_faceted_plot <- ggplot(data = main_set, aes(
+  x = total_events,
+  y = owner_cost_median,
+  color = cut(year, breaks = c(2012, 2014, 2017, 2019, 2022, 2024)),
+  alpha = 0.5
+)) +
+  geom_point() +
+  theme_bw() +
+  labs(title = "Major Weather Events' Effect on Costs") +
+  labs(subtitle = "By U.S. County Median, By Year") + 
+  xlab("Total Major Weather Events") +
+  ylab("Monthly Homeowner Costs (with insurance), $US") +
+  scale_color_manual(values = c('darkgreen', 'darkred', 'blue'), 
+                     labels = c("2013", "2018", "2023")) +
+  theme(legend.title = element_blank()) +
+  theme(plot.title = element_text(color = "goldenrod4")) +
+  theme(plot.subtitle = element_text(color = "goldenrod4")) +
+  theme(legend.position = "none") +
+  guides(alpha = "none") +
+  geom_smooth(method = "lm", se = FALSE, color = 'black') +
+  facet_wrap(~ year)
+
+model_1_faceted_plot
+```
 ```
 
 Shifting NOAA years to better plot effects YoY:
