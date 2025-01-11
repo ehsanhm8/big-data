@@ -398,6 +398,7 @@ panel_data <- main_set %>%
          total_events_lagged, everything()) |>
   ungroup()
 panel_data_plm <- pdata.frame(panel_data, index = c("fips_ovr", "year"))
+```
 
 # fixed effects model
 ```{r}
