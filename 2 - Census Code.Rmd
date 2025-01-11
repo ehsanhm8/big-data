@@ -403,3 +403,27 @@ ggplot(data = main_set, aes(
   theme(plot.subtitle = element_text(color = "navy")) +
   guides(alpha = "none")
 ```
+Create lag 
+```{r}
+library(dplyr)
+library(plm)
+
+main_set <- main_set %>%
+  mutate(ending_fips_ovr = sub("^[^_]*_","",fips_ovr))%>%
+  select(ending_fips_ovr, everything())
+
+
+panel_main_set <- main_set %>%
+  arrange(fips_ovr, year) %>%   
+  group_by(fips_ovr) %>%      
+  mutate(
+    lag_events = lag(total_events, n = 1) )%>%
+    select(lag_events, year, total_events, fips_ovr, everything())%>%
+    ungroup()
+
+panel_main_set <- panel_main_set %>%
+    mutate(log_owner_cost_median=log(owner_cost_median))
+
+pooled_ols_model2 <- plm(log_owner_cost_median ~lag_events, 
+                  data = panel_main_set,
+                  model="pooling")
