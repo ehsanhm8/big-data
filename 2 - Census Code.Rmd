@@ -384,7 +384,7 @@ summary(model_1)
 A graphical representation of the above:
 
 ```{r}
-ggplot(data = main_set, aes(
+model_1_plot <- ggplot(data = main_set, aes(
   x = total_events,
   y = owner_cost_median,
   color = cut(year, breaks = c(2012, 2014, 2017, 2019, 2022, 2024)),
@@ -393,7 +393,7 @@ ggplot(data = main_set, aes(
   geom_point() +
   theme_bw() +
   labs(title = "Major Weather Events' Effect on Costs") +
-  labs(subtitle = "By County, By Year") + 
+  labs(subtitle = "By U.S. County, By Year") + 
   xlab("Total Major Weather Events in Year") +
   ylab("Owner Cost Median ($)") +
   scale_color_manual(values = c('green', 'darkred', 'blue'), 
@@ -402,7 +402,67 @@ ggplot(data = main_set, aes(
   theme(plot.title = element_text(color = "navy")) +
   theme(plot.subtitle = element_text(color = "navy")) +
   guides(alpha = "none")
+
+model_1_plot
 ```
+
+How about we fit a line of best fit on that?
+
+```{r}
+model_1_plot_lm <- model_1_plot +
+  geom_smooth(method = "lm", se = FALSE)
+
+model_1_plot_lm
+```
+
+Shifting NOAA years to better plot effects YoY:
+
+```{r}
+
+noaa_1_county_shifted <- noaa_1_county |>
+  mutate(year_shift = year + 5) |>
+  rename(year_actual = year, year = year_shift) |>
+  filter(year != 2028, year != 2013)
+
+main_set_shifted <-
+  full_join(noaa_1_county_shifted, census_data_total,
+            by = join_by(year == year, fips_ovr == fips_ovr))
+
+main_set_shifted <- main_set_shifted |>
+  filter(!(county.x %in% exclusive_counties)) |>
+  filter(!(county.y %in% exclusive_counties)) |>
+  select(fips_ovr, state, year, year_actual, total_events, owner_cost_median, everything()) |>
+  drop_na()
+```
+
+```{r}
+model_2 <- lm(owner_cost_median ~ total_events, data = main_set_shifted)
+summary(model_2)
+```
+
+```{r}
+model_2_plot <- ggplot(data = main_set, aes(
+  x = total_events,
+  y = owner_cost_median,
+  color = cut(year, breaks = c(2017, 2019, 2022, 2024)),
+  alpha = 0.5
+)) +
+  geom_point() +
+  theme_bw() +
+  labs(title = "Major Weather Events' Effect on Costs") +
+  labs(subtitle = "By U.S. County, By Year") + 
+  xlab("Total Major Weather Events in Year, 5 Years Before") +
+  ylab("Owner Cost Median ($)") +
+  scale_color_manual(values = c('red', 'orange'), 
+                     labels = c("2018", "2023")) +
+  theme(legend.title = element_blank()) +
+  theme(plot.title = element_text(color = "navy")) +
+  theme(plot.subtitle = element_text(color = "navy")) +
+  guides(alpha = "none")
+
+model_2_plot
+```
+
 Create lag:
 
 ```{r}
