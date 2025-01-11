@@ -1,5 +1,5 @@
 ---
-title: "Title for Group"
+title: "Main Code for Winter Institute Project: Extreme Weather Events and Homeowner Costs"
 author: "Ehsan Habibpour, Natalie Short, and Ryan Altman"
 date: "`r Sys.Date()`"
 output:
@@ -28,6 +28,8 @@ library(plm)
 library(lmtest)
 library(sandwich)
 library(stargazer)
+library(glmnet)
+library(Matrix)
 ```
 
 ```{r}
@@ -488,8 +490,6 @@ print(clustered_results)
 
 # Lasso model
 ```{r}
-library(glmnet)
-library(Matrix)
 
 # First, create the matrix of fixed effects
 # Convert county IDs to dummy variables
