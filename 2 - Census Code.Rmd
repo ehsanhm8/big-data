@@ -385,7 +385,7 @@ cost_hist <- ggplot(data = main_set, aes(x = owner_cost_median)) +
     subtitle = ("(with insurance)")
   ) +
   xlab("Owner Cost Median ($)") +
-  ylab("Number of US Counties") +
+  ylab("Number of US Counties")
 
 cost_hist
 ```
@@ -550,15 +550,18 @@ model_1_faceted_plot <- ggplot(data = main_set, aes(
   geom_point() +
   theme_bw() +
   labs(title = "Major Weather Events' Effect on Costs") +
-  labs(subtitle = "By U.S. County, By Year") + 
-  xlab("Total Major Weather Events in Year") +
-  ylab("Owner Cost Median ($)") +
-  scale_color_manual(values = c('green', 'darkred', 'blue'), 
+  labs(subtitle = "By U.S. County Median, By Year") + 
+  xlab("Total Major Weather Events") +
+  ylab("Monthly Homeowner Costs (with insurance), $US") +
+  scale_color_manual(values = c('darkgreen', 'darkred', 'blue'), 
                      labels = c("2013", "2018", "2023")) +
   theme(legend.title = element_blank()) +
-  theme(plot.title = element_text(color = "navy")) +
-  theme(plot.subtitle = element_text(color = "navy")) +
-  guides(alpha = "none")
+  theme(plot.title = element_text(color = "goldenrod4")) +
+  theme(plot.subtitle = element_text(color = "goldenrod4")) +
+  theme(legend.position = "none") +
+  guides(alpha = "none") +
+  geom_smooth(method = "lm", se = FALSE, color = 'black') +
+  facet_wrap(~ year)
 
 model_1_faceted_plot
 ```
