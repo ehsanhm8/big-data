@@ -1,0 +1,895 @@
+---
+title: "Your Substantive Title Here"
+author: 
+  - Ryan Altman^[American University]
+  - Ehsan Habibpour^[American University]
+  - Nataie Short^[American University]
+format: 
+  pdf:
+    number-sections: true
+    toc: false
+    geometry: 
+      - top=3cm
+date: "`r Sys.Date()`"
+date-format: iso
+documentclass: article
+editor: source
+abstract: "Using data from the United States Census Bureau and the National Oceanic and Atmospheric Administration, we examine whether the incidence of extreme storm events is associated with a change in reported homeowner insurance costs."
+bibliography: main.bib
+---
+
+```{r setup}
+#| echo: false
+#| message: false
+
+# This chunk loads any packages we need.
+
+library(broom)
+library(kableExtra)
+library(parameters)
+library(tidyverse)
+library(xtable)
+library(tidycensus)
+library(dplyr)
+library(tidyr)
+library(writexl)
+library(readr)
+library(stringr)
+library(plm)
+library(ggplot2)
+library(plm)
+library(lmtest)
+library(sandwich)
+library(stargazer)
+library(glmnet)
+library(Matrix)
+```
+
+Census data download:
+
+```{r}
+#| echo: false
+#| message: false
+
+# get census data
+get_census_year_data <- function(year_tg, price_index, nt = 2) {
+  # Define variables
+  variables <- c(
+    houseowners_total = "B25087_001E", #Housing units
+    houseowners_with_mortgage = "B25087_002E", #Housing units with a mortgage
+    houseowners_without_mortgage = "B25087_020E", #Housing units without a mortgage
+    household_size_average = "B25010_001E", #Average Household Size
+    income_median = "B19013_001E", #Median household income in the past 12 months
+    house_value_median = "B25077_001E", #Median Value
+    owner_cost_median = "B25088_001E", #Median selected monthly owner costs
+    owner_cost_median_with_mortgage = "B25088_002E", #same with mortgage
+    owner_cost_median_without_mortgage = "B25088_003E", #same without mortgage
+    owner_cost_to_income_median = "B25092_001E", #sama as a percentage of yearly income
+    owner_cost_to_income_median_with_mortgage = "B25092_002E", #same with mortgage
+    owner_cost_to_income_median_without_mortgage = "B25092_003E" #same without mortgage
+  )
+
+  census_data <- get_acs(
+    geography = "county",
+    variables = variables,
+    year = year_tg,
+    survey = "acs5",
+    output = "wide"
+  )
+
+  # Process data
+  census_data <- census_data %>%
+    select(GEOID, NAME, all_of(names(variables))) %>%
+    mutate(
+      state_fips = as.numeric(substr(GEOID, 1, 2)),    # Extract first 2 digits for state FIPS
+      county_fips = as.numeric(substr(GEOID, 3, 5)),   # Extract last 3 digits for county FIPS
+      state = sub(".*,\\s*", "", NAME),
+      county = sub(",\\s*[^,]*$", "", NAME)
+    ) %>%
+    mutate(
+      county = str_remove(county, " County$"),
+      county = str_remove(county, " Census Area$"),
+      county = str_remove(county, " Municipio$"),
+      county = str_remove(county, " Parish$"),
+      county = str_remove(county, " Borough$"),
+      county = str_remove(county, " Planning Region$"),
+      county = str_remove(county, " city$")
+    ) %>%
+    mutate(
+      income_median = income_median/price_index,
+      house_value_median = house_value_median/price_index,
+      owner_cost_median = owner_cost_median * 12/price_index,
+      owner_cost_median_with_mortgage = owner_cost_median_with_mortgage * 12/price_index,
+      owner_cost_median_without_mortgage = owner_cost_median_without_mortgage * 12/price_index,
+      year = year_tg
+    ) %>%
+    select(
+      GEOID, state_fips, county_fips, state, county, year, houseowners_total,
+      houseowners_with_mortgage, houseowners_without_mortgage, household_size_average,
+      house_value_median, owner_cost_median, income_median,
+      owner_cost_median_with_mortgage, owner_cost_median_without_mortgage,
+      owner_cost_to_income_median, owner_cost_to_income_median_with_mortgage,
+      owner_cost_to_income_median_without_mortgage
+    )
+  
+  return(census_data)
+}
+
+# Get data for each year
+census_data_2023 <- get_census_year_data(2023, 1) 
+census_data_2018 <- get_census_year_data(2018, 0.824)
+census_data_2013 <- get_census_year_data(2013, 0.765)
+
+# Combine all years into one dataset
+census_data_total <- bind_rows(
+  census_data_2023,
+  census_data_2018,
+  census_data_2013
+)
+
+# Sort the final dataset
+census_data_total <- census_data_total %>%
+  arrange(state, county, year)
+```
+
+NOAA storm and events data download:
+
+```{r}
+noaa_data <- read_csv("Data/county_events.csv")
+noaa_data <- noaa_data |>
+  filter(year == 2013 | year == 2018 | year == 2023)
+```
+
+# Joining the census and NOAA datasets:
+
+```{r}
+# Adjusting county names for a join
+
+census_data_total <- census_data_total |>
+  mutate(county = str_to_upper(county, locale = "en")) |>
+  group_by(state) |>
+  arrange(county, .by_group = TRUE) |>
+  ungroup()
+
+# Pivoting the NOAA data so each county only appears once
+
+noaa_1_county <- noaa_data |>
+  pivot_wider(names_from = event_type, values_from = event_count, 
+              values_fill = list(event_count = 0),
+              id_cols = c("state_fips_code", "cz_fips_code", "year", "state", "county"))
+
+```
+
+```{r}
+
+noaa_1_county <- noaa_1_county |>
+  rename(state_bad = state) |>
+  mutate(total_events = rowSums(across(where(is.numeric))) - year) |>
+  group_by(state_fips_code) |>
+  arrange(county, .by_group = TRUE) |>
+  ungroup() |>
+  mutate(county_state = paste(county, state_fips_code, sep = " -- ")) |>
+  mutate(fips_ovr = paste(county, as.character(state_fips_code), as.character(cz_fips_code), sep = "__")) |>
+  select(county, fips_ovr, total_events, state_fips_code, county_state, year, everything())
+
+head(census_data_total)
+head(noaa_1_county)
+```
+
+### Splitting the NOAA event data by year -- not necessarily what we use, but it's good to have them split up.
+
+```{r}
+noaa_2013 <- noaa_1_county |>
+  filter(year == 2013)
+
+noaa_2018 <- noaa_1_county |>
+  filter(year == 2018)
+
+noaa_2023 <- noaa_1_county |>
+  filter(year == 2023)
+
+head(noaa_2013)
+head(noaa_2018)
+head(noaa_2023)
+```
+
+### Counting the number of counties in each 
+
+```{r}
+print("2013:")
+nrow(noaa_2013)
+print("2018:")
+nrow(noaa_2018)
+print("2023:")
+nrow(noaa_2023)
+```
+
+### Finding counties that only appear in one year.
+
+```{r}
+
+exclusive_counties_13 <- setdiff(noaa_2013$fips_ovr, noaa_2018$fips_ovr)
+exclusive_counties_13_23 <- setdiff(noaa_2013$fips_ovr, noaa_2023$fips_ovr)
+exclusive_counties_13_18_1 <- setdiff(noaa_2023$fips_ovr, noaa_2013$fips_ovr)
+exclusive_counties_13_23_1 <- setdiff(noaa_2018$fips_ovr, noaa_2013$fips_ovr)
+exclusive_counties_18 <- setdiff(noaa_2018$fips_ovr, noaa_2023$fips_ovr)
+exclusive_counties_23 <- setdiff(noaa_2023$fips_ovr, noaa_2018$fips_ovr)
+exclusive_counties <- c(exclusive_counties_13, exclusive_counties_13_23, 
+                        exclusive_counties_18, exclusive_counties_23,
+                        exclusive_counties_13_18_1, exclusive_counties_13_23_1)
+length(exclusive_counties)
+```
+
+```{r}
+noaa_2013_bothyearcounties <- noaa_2013 |>
+  filter(!(fips_ovr %in% exclusive_counties))
+
+noaa_2018_bothyearcounties <- noaa_2018 |>
+  filter(!(fips_ovr %in% exclusive_counties))
+  
+noaa_2023_bothyearcounties <- noaa_2023 |>
+    filter(!(fips_ovr %in% exclusive_counties))
+
+print("Checking the row count:")
+print(nrow(noaa_2013_bothyearcounties))
+print(nrow(noaa_2018_bothyearcounties))
+print(nrow(noaa_2023_bothyearcounties))
+```
+
+# Exploratory Data Analysis
+
+Are storms correlated b y county?
+
+```{r}
+ggplot(mapping = aes(
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
+)) +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018 | Total Events") +
+  ylab("2023 | Total Events") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'navy')) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 750), ylim = c(0, 750))
+```
+
+Let's zoom in on the majority of counties:
+
+```{r}
+ggplot(mapping = aes(
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
+)) +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018 | Total Events") +
+  ylab("2023 | Total Events") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'navy')) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 310), ylim = c(0, 310))
+```
+
+…and zoom in even closer:
+
+```{r}
+ggplot(mapping = aes(
+  x = noaa_2018_bothyearcounties$total_events,
+  y = noaa_2023_bothyearcounties$total_events,
+  alpha = 0.5
+)) +
+  geom_point(color = 'goldenrod4', shape = "*", size = 5) +
+  labs(
+    title = "Five-Year Change in Weather Events",
+    subtitle = "Counties Where Events > 0, per NOAA") +
+  xlab("2018 | Total Events") +
+  ylab("2023 | Total Events") +
+  theme_bw() +
+  theme(legend.position = "none") +
+  theme(title = element_text(color = 'navy')) +
+  coord_equal(ratio = 1, expand = TRUE, xlim = c(0, 150), ylim = c(0, 150))
+```
+
+A linear model for this relationship:
+
+```{r}
+model <- lm(noaa_2023_bothyearcounties$total_events ~ noaa_2018_bothyearcounties$total_events)
+summary(model)
+```
+2018 events and 2023 events are highly correlated by county, which makes sense because weather is generally stable within a 5-year period.  Overall, though, there is a very slight positive relationship between year-change and total events -- demonstrating climate change and the greater prevalence of extreme weather events.
+
+Delineating by event type:
+
+```{r}
+event_sum_bothyears <- noaa_1_county |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year", name != "total_events", name != "state_fips_code", name != "cz_fips_code") |>
+  rename(event_type = name)
+
+event_sum_2018 <- noaa_2018 |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year", name != "state_fips_code", name != "cz_fips_code") |>
+  rename(event_type = name)
+
+event_sum_2023 <- noaa_2023 |>
+  select(-c(county, state_bad, county_state, fips_ovr)) |>
+  pivot_longer(cols = everything()) |>
+  group_by(name) |>
+  summarise(instances = sum(value)) |>
+  filter(name != "year", name != "state_fips_code", name != "cz_fips_code") |>
+  rename(event_type = name)
+```
+
+Floods:
+
+```{r}
+
+floods <- c("flood", "flash flood", "coastal flood", "lakeshore flood")
+
+floods_bothyears <- event_sum_bothyears |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+floods_2018 <- event_sum_2018 |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+floods_2023 <- event_sum_2023 |>
+  filter(event_type %in% floods) |>
+  arrange(desc(instances))
+
+summary(floods_bothyears)
+
+head(floods_bothyears)
+```
+
+```{r}
+
+census_data_total <- census_data_total |>
+  mutate(county = str_to_upper(county, locale = "en")) |>
+  mutate(fips_ovr = paste(county, as.character(state_fips), as.character(county_fips), sep = "__"))
+
+census2013 <- census_data_total |>
+  filter(year == 2013)
+
+census2018 <- census_data_total |>
+  filter(year == 2018)
+
+census2023 <- census_data_total |>
+  filter(year == 2023)
+
+exclusive_counties_census <- setdiff(census2023$county, noaa_2023_bothyearcounties$county)
+exclusive_counties_noaa <- setdiff(noaa_2023_bothyearcounties$county, census2023$county)
+exclusive_counties <- c(exclusive_counties_census, exclusive_counties_noaa)
+length(exclusive_counties)
+
+census2023_noaa2023 <-
+  full_join(noaa_2023_bothyearcounties, census2023, 
+            by = "fips_ovr")
+
+census2023_noaa2023 <- census2023_noaa2023 |>
+  filter(!(county.x %in% exclusive_counties)) |>
+  filter(!(county.y %in% exclusive_counties))
+```
+
+```{r}
+main_set <-
+  full_join(noaa_1_county, census_data_total,
+            by = join_by(year == year, fips_ovr == fips_ovr))
+
+main_set <- main_set |>
+  filter(!(county.x %in% exclusive_counties)) |>
+  filter(!(county.y %in% exclusive_counties)) |>
+  select(fips_ovr, state, year, total_events, owner_cost_median, everything()) |>
+  drop_na()
+```
+
+More EDA:
+
+```{r}
+cost_hist <- ggplot(data = main_set, aes(x = owner_cost_median)) +
+  geom_histogram(fill = 'darkred', binwidth = 300) +
+  theme_bw() +
+  labs(
+    title = "Median of Estimated Monthly Homeowner Costs",
+    subtitle = ("(with insurance)")
+  ) +
+  xlab("Owner Cost Median ($)") +
+  ylab("Number of US Counties")
+
+cost_hist
+```
+
+```{r}
+events_boxplot <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year))) +
+  geom_boxplot() +
+  labs(title = "Weather Events Sorted by Year") +
+  coord_flip() +
+  ylab("Year") +
+  xlab("Total Reported Severe Events") +
+  theme_bw()
+
+events_boxplot
+```
+
+```{r}
+events_boxplot_no_outliers <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year))) +
+  geom_boxplot(outlier.shape = NA) +
+  scale_x_continuous(limits = quantile(main_set$total_events, c(0.1, 0.9))) +
+  labs(title = "Weather Events Sorted by Year", 
+       subtitle = "Outliers Removed") +
+  coord_flip() +
+  ylab("Year") +
+  xlab("Total Reported Severe Events") +
+  theme_bw()
+
+events_boxplot_no_outliers
+```
+
+```{r}
+events_violin <- ggplot(data = main_set, aes(x = total_events, y = as.factor(year), fill = year)) +
+  geom_violin() +
+  xlab("Total Reported Severe Events (via NOAA)") +
+  ylab("Year") +
+  labs(title = "Weather Events Sorted by Year",
+       subtitle = ) +
+  theme_bw() +
+  theme(legend.position = "none",
+        title = element_text(color = 'maroon')) +
+  coord_flip()
+
+events_violin
+```
+
+# Models and Analyses
+# Panel
+```{r}
+
+#write_xlsx(main_set, "Data/main_set.xlsx")
+
+# Create panel data structure
+panel_data <- main_set %>%
+  arrange(fips_ovr, year) %>%
+  group_by(fips_ovr) %>%
+  mutate(
+    total_events_lagged = dplyr::lag(total_events),
+    log_owner_cost = log(owner_cost_median),
+    log_total_events = log(total_events+1),
+    log_total_events_lagged = log(total_events_lagged+1),
+    log_house_value_median = log(house_value_median),
+    log_income_median = log(income_median),
+    log_household_size_average = log(household_size_average)
+  ) %>%
+  select(fips_ovr, year, owner_cost_median, total_events,
+         total_events_lagged, everything()) |>
+  ungroup()
+panel_data_plm <- pdata.frame(panel_data, index = c("fips_ovr", "year"))
+```
+
+# fixed effects model
+```{r}
+fe_model1 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
+                log_income_median + log_household_size_average, 
+                data = panel_data_plm,
+                model = "within")
+
+fe_model2 <- plm(log_owner_cost ~ log_total_events + log_house_value_median +
+                log_household_size_average, 
+                data = panel_data_plm,
+                model = "within")
+
+fe_model3 <- plm(log_owner_cost ~ log_total_events + log_house_value_median,
+                data = panel_data_plm,
+                model = "within")
+
+fe_model4 <- plm(log_owner_cost ~ log_total_events_lagged + log_house_value_median,
+                data = panel_data_plm,
+                model = "within")
+
+fe_model <- fe_model4
+
+clustered_results <- coeftest(fe_model, vcov = vcovHC(fe_model, type = "HC1", cluster = "group"))
+print(clustered_results)
+```
+
+# Lasso model
+```{r}
+
+# First, create the matrix of fixed effects
+# Convert county IDs to dummy variables
+county_dummies <- model.matrix(~ factor(fips_ovr) - 1, data = panel_data_plm)
+
+# Create matrix of other predictors
+X <- model.matrix(~ log_total_events + log_house_value_median - 1, 
+                 data = panel_data_plm)
+
+# Combine predictors and fixed effects
+X_full <- cbind(X, county_dummies)
+
+# Response variable
+y <- panel_data_plm$log_owner_cost
+
+# Fit LASSO model with cross-validation
+cv_lasso <- cv.glmnet(X_full, y, alpha = 1)
+
+# Fit final model with optimal lambda
+lasso_model <- glmnet(X_full, y, alpha = 1, lambda = cv_lasso$lambda.min)
+
+# View coefficients
+coef(lasso_model)
+```
+
+# Presentation
+```{r}
+
+stargazer(fe_model, 
+          type = "text",  # Use "html" or "latex" for other formats
+          title = "Fixed Effects Regression Results",
+          covariate.labels = c("Log Total Events",
+                             "Log House Value",
+                             "Log Household Size"),
+          dep.var.labels = "Log Owner Cost",
+          digit.separator = ",",
+          digits = 3,
+          model.numbers = FALSE,
+          se = sqrt(diag(vcovHC(fe_model, type = "HC1", cluster = "group"))), # Use clustered SE
+          star.cutoffs = c(0.05, 0.01, 0.001),
+          add.lines = list(
+            c("County Fixed Effects", "Yes"),
+            c("Year Fixed Effects", "No"),
+            c("Clustered SE", "County")
+          ))
+```
+
+# Linear Model 
+
+```{r}
+model_1 <- lm(owner_cost_median ~ total_events, data = main_set)
+summary(model_1)
+```
+
+A graphical representation of the above:
+
+```{r}
+model_1_plot <- ggplot(data = main_set, aes(
+  x = total_events,
+  y = owner_cost_median,
+  color = cut(year, breaks = c(2012, 2014, 2017, 2019, 2022, 2024)),
+  alpha = 0.5
+)) +
+  geom_point() +
+  theme_bw() +
+  labs(title = "Major Weather Events' Effect on Costs") +
+  labs(subtitle = "By U.S. County, By Year") + 
+  xlab("Total Major Weather Events in Year") +
+  ylab("Owner Cost Median ($)") +
+  scale_color_manual(values = c('green', 'darkred', 'blue'), 
+                     labels = c("2013", "2018", "2023")) +
+  theme(legend.title = element_blank()) +
+  theme(plot.title = element_text(color = "navy")) +
+  theme(plot.subtitle = element_text(color = "navy")) +
+  guides(alpha = "none")
+
+model_1_plot
+```
+
+How about we fit a line of best fit on that?
+
+```{r}
+model_1_plot_lm <- model_1_plot +
+  geom_smooth(method = "lm", se = FALSE)
+
+model_1_plot_lm
+```
+
+Split the above plot into years:
+
+```{r}
+model_1_faceted_plot <- ggplot(data = main_set, aes(
+  x = total_events,
+  y = owner_cost_median,
+  color = cut(year, breaks = c(2012, 2014, 2017, 2019, 2022, 2024)),
+  alpha = 0.5
+)) +
+  geom_point() +
+  theme_bw() +
+  labs(title = "Major Weather Events' Effect on Costs") +
+  labs(subtitle = "By U.S. County Median, By Year") + 
+  xlab("Total Major Weather Events") +
+  ylab("Monthly Homeowner Costs (with insurance), $US") +
+  scale_color_manual(values = c('darkgreen', 'darkred', 'blue'), 
+                     labels = c("2013", "2018", "2023")) +
+  theme(legend.title = element_blank()) +
+  theme(plot.title = element_text(color = "goldenrod4")) +
+  theme(plot.subtitle = element_text(color = "goldenrod4")) +
+  theme(legend.position = "none") +
+  guides(alpha = "none") +
+  geom_smooth(method = "lm", se = FALSE, color = 'black') +
+  facet_wrap(~ year)
+
+model_1_faceted_plot
+```
+
+Shifting NOAA years to better plot effects YoY:
+
+```{r}
+
+noaa_1_county_shifted <- noaa_1_county |>
+  mutate(year_shift = year + 5) |>
+  rename(year_actual = year, year = year_shift) |>
+  filter(year != 2028, year != 2013)
+
+main_set_shifted <-
+  full_join(noaa_1_county_shifted, census_data_total,
+            by = join_by(year == year, fips_ovr == fips_ovr))
+
+main_set_shifted <- main_set_shifted |>
+  filter(!(county.x %in% exclusive_counties)) |>
+  filter(!(county.y %in% exclusive_counties)) |>
+  select(fips_ovr, state, year, year_actual, total_events, owner_cost_median, everything()) |>
+  drop_na()
+```
+
+```{r}
+model_2 <- lm(owner_cost_median ~ total_events, data = main_set_shifted)
+summary(model_2)
+```
+
+```{r}
+model_2_plot <- ggplot(data = main_set, aes(
+  x = total_events,
+  y = owner_cost_median,
+  color = cut(year, breaks = c(2017, 2019, 2022, 2024)),
+  alpha = 0.5
+)) +
+  geom_point() +
+  theme_bw() +
+  labs(title = "Major Weather Events' Effect on Costs") +
+  labs(subtitle = "By U.S. County, By Year") + 
+  xlab("Total Major Weather Events in Year, 5 Years Before") +
+  ylab("Owner Cost Median ($)") +
+  scale_color_manual(values = c('red', 'orange'), 
+                     labels = c("2018", "2023")) +
+  theme(legend.title = element_blank()) +
+  theme(plot.title = element_text(color = "navy")) +
+  theme(plot.subtitle = element_text(color = "navy")) +
+  guides(alpha = "none")
+
+model_2_plot
+```
+
+Create lag:
+
+```{r}
+
+main_set <- main_set %>%
+  mutate(ending_fips_ovr = sub("^[^_]*_","",fips_ovr))%>%
+  select(ending_fips_ovr, everything())
+
+
+panel_main_set <- main_set %>%
+  arrange(fips_ovr, year) %>%   
+  group_by(fips_ovr) %>%      
+  mutate(
+    lag_events = lag(total_events, n = 1) )%>%
+    select(lag_events, year, total_events, fips_ovr, everything())%>%
+    ungroup()
+
+panel_main_set <- panel_main_set %>%
+    mutate(log_owner_cost_median=log(owner_cost_median))
+
+pooled_ols_model2 <- plm(log_owner_cost_median ~lag_events, 
+                  data = panel_main_set,
+                  model="pooling")
+```
+
+# Introduction
+
+In recent years, the homeowners insurance market has been disrupted by more extreme weather events - increasing both in storm intensity and incidence - which has made the provision of this insurance unprofitable in many states, resulting in rate hikes or the cessation of coverage altogether \cite{latimes2024insurancecrisis, nyt2023climateinsurance, nyt2024climateinsurancehomes, nyt2024insurancepremiums}. Major insurers State Farm, Farmers, and Allstate have all pulled out of providing homeowners insurance in California. State Farm, previously the largest homeowners insurer in the state, cited “historic increases in construction costs outpacing inflation, rapidly growing catastrophe exposure, and a challenging reinsurance market” when they announced this change in 2023 \cite{statefarm2023california}. In this study, we search for evidence of the second reason by examining whether severe storm event data is correlated with homeowners reported insurance costs. 
+
+
+# [Our Substance and Context Section Title Here]
+
+Here we go deeper into the intellectual debate, the political and social context of our investigation. To give the reader a clear sense of why we are writing this paper, we describe the relevant scholarly, technical, or popular literature. We give this section a meaningful _substantive_ title; it is not entitled "Literature Review", for example. We cite at least five published, peer-reviewed scholarly works, as long as they are relevant. For example, we could cite @mooree20 or @moorav12^[There should always be a space before the "(" in a citation date.], which we discussed in class.^[To cite a paper within parentheses, use, e.g., [@moore12].] We only cite others' work in our paper when it enhances the reader's understanding of what we, the authors of this paper, are doing. We connect everything we cite to _our_ investigation. This is our original research, not a book report or an annotated bibliography.
+
+We do not cite paper titles or journal names, unless our paper is about someone else's paper or about the set of articles in a journal. We do not cite authors' first, given names. We do not cite the universities or institutes with which authors are affiliated. We can refer to either what an author does, or what a paper does, but we should be consistent. For example, "@moorav12 argue that we should \ldots" refers to what the authors do; "@moorav12 argues that we should \ldots" refers to what the paper -- @moorav12 -- does.
+
+In order to integrate citations into the References section below, we add entries into our file `main.bib`. This is a plain-text file that we edit in RStudio (or BibDesk, or similar). We store `main.bib` in the same folder as our paper's `.qmd` and `.pdf` files. Its entries are formatted so that they can be knit to `.pdf`; see [https://j.mp/2UzTXEZ](https://www.overleaf.com/learn/latex/Bibliography_management_with_bibtex#The_bibliography_file) for example entries for articles, books, and miscellaneous. We can get these entries automatically from Google Scholar by turning on BibTeX in the Google Scholar Settings - Bibliography Manager. Perhaps we use a tool like free, open-source BibDesk to help us manage the `.bib` file.
+
+
+# Data and Methods {#sec-data}
+
+This section describes the data we analyze. We describe the source of the data,
+and its primary features. We cite our data. We describe the methods we use to
+answer our question and to test our hypotheses.
+
+If our data were `cars`, loaded in a chunk above, we note that our data have `r nrow(cars)` observations. Our unit of analysis is the cars; each row represents a different car that was measured.
+
+We refer to concepts and label them appropriately. We state our outcome and how it is measured: "Our outcome is stopping distance, measured in feet." We state our key predictor and how it is measured: "Our key predictor is the car's speed, measured in miles per hour."
+
+We almost never refer to specific variable, object, function, or data frame names (such as `var_x`, `ourdata`, `this_useful_func`, or `df`). These particular names are almost never of interest or use to the reader.
+
+We explain important decisions and codings in this section. "We collect our data from source X. We code the outcome as 1 if the registrant turned out in the 2022 election, 0 if they did not." A table can serve as an efficient way to detail several such decisions.
+
+Where there are less-critical details that we implement to improve our analysis or presentation, we do not explain them in the paper. Our paper does not say, for example, "we reorder the levels of the factor variable from alphabetical 'high, low, medium' to the sensible 'low, medium, high.'" Of course, we implement that reordering, but it should not appear in our paper.
+
+We cite the software we use. For example, we conduct our analysis using R version `r paste(R.version$major, R.version$minor, sep = ".")` [@rcoreteam2410]. We rely on several elements of the `tidyverse` [@wickhamtidyverse]. Of course, we do not cite software that we do not use.
+
+# [Our Results Section Title Here]
+
+Here, we explain and interpret our results. We try to learn as much as we can about our question as possible, given the data and analysis. We present our results clearly. We interpret them for the reader with precision and circumspection. We avoid making claims that are not substantiated by our data. We are careful about causality. When we describe associations, we avoid language like "effects" and "increases"; we only describe "effects" or "impacts" when we have a causally well-identified research design. 
+
+Note that this section may be integrated into @sec-data, if joining the two improves the overall presentation.
+
+## Predicting Distance with Speed
+
+Our results for the `cars` data include estimating the linear model 
+
+$$\text{Distance}_i = \beta_0 + \beta_1 (\text{Speed}_i) + \epsilon_i.$$
+Perhaps we start by plotting the data, as in @fig-cars.
+
+```{r fig-cars}
+#| echo: false
+#| fig-cap: Distance on Speed
+
+ggplot(cars, aes(speed, dist)) +
+  geom_point()
+```
+
+The data may be roughly linear, though there may be some non-linearity we should incorporate.
+
+```{r linearmodel}
+#| echo: false
+
+# Estimate a linear model:
+lm_out <- lm(dist ~ speed, data = cars)
+# Extract the coefficient on speed:
+cars_speed_coef <- coef(lm_out)["speed"]
+```
+
+Below we show the model estimates. The first table uses `xtable()`, the second uses `stargazer()` [@hlavac18].
+
+```{r linearxtable}
+#| echo: false
+#| message: false
+#| results: 'asis'
+
+# We can print regression tables with xtable or stargazer:
+regr_table <- xtable::xtable(lm_out,
+                             digits = 2,
+                             caption = "Our Informative Caption")
+
+print(regr_table, comment = FALSE)
+```
+
+```{r linearstargazer}
+#| echo: false
+#| message: false
+#| results: 'asis'
+
+# We can print regression tables with xtable or stargazer:
+stargazer::stargazer(lm_out, 
+                     title = "Our Informative Title",
+                     dep.var.caption = "Outcome",
+                     digits = 2,
+                     header = FALSE)
+```
+
+Using the `cars` data, we find that each unit of speed is associated with `r round(cars_speed_coef, 1)` more units of distance. We draw out what this really means, and what it implies. For example, if a typical difference among our observations is 7 units of speed, then our model estimates that a typical difference in distance among our observations is $7 \times `r round(cars_speed_coef, 1)` = `r 7 * round(cars_speed_coef, 1)`$ units of distance. We describe the substantive relevance of this number.
+
+We do not report estimates like `p = 3.242e-15`, since these are computational zeros. Instead, we write $p < 0.001$ or $p \approx 0$, as appropriate.
+
+We do not report quantities to unhelpful degrees of precision. Although there were 112,030,874 votes cast from voting-eligible population of 242,690,810 in the U.S. in 2022, it is not helpful to report turnout as `r (112030874 / 242690810) * 100`%; writing `r round((112030874 / 242690810) * 100, 1)`% suffices.
+
+
+## Comparing Distances between High- and Low-Speed Cars
+
+```{r ttest}
+#| echo: false
+
+# Create a binary variable for "high-speed":
+cars <- cars |> mutate(hs = ifelse(speed > mean(speed), 1, 0))
+
+# Conduct t-test:
+t_out <- t.test(dist ~ hs, cars)
+
+t_lower_ci <- t_out$conf.int[1] |> round(2)
+t_upper_ci <- t_out$conf.int[2] |> round(2)
+```
+
+To report the results of a $t$-test, we do so in text, and perhaps in a well-formatted table as well, such as @tbl-ttesttable. Here, as above, we report the important details in text. For example, when we define "high-speed" cars as those traveling above the mean speed, the difference between the high-speed and low-speed group means is `r t_out$estimate[2] - t_out$estimate[1]`, with a 95% confidence interval that covers $(`r -t_upper_ci`, `r -t_lower_ci`)$. 
+
+```{r tbl-ttesttable}
+#| echo: false
+#| warning: false
+#| tbl-cap: Distance by Speed Group
+
+parameters::model_parameters(t_out) |> 
+  parameters::print_md(
+    footer = "")
+```
+
+If I have tests of two outcomes from the same data, I can bind them together, as in @tbl-ttesttable2:
+
+```{r tbl-ttesttable2}
+#| echo: false
+#| warning: false
+#| tbl-cap: Distance and Square-root Distance by Speed Group
+
+cars <- cars |> mutate(dist_sqrt = (sqrt(dist)))
+t_out_2 <- t.test(dist_sqrt ~ hs, data = cars)
+
+tab <- rbind(
+  model_parameters(t_out),
+  model_parameters(t_out_2)
+)
+
+tab |> 
+  print_md(
+    footer = "")
+```
+
+If we have trouble formatting using `{parameters}`, we can use `kable()` for one test, as in @tbl-ttesttable_kable, or two tests as in @tbl-ttesttable_kable2:
+
+```{r tbl-ttesttable_kable}
+#| echo: false
+#| warning: false
+#| tbl-cap: Distance by Speed Group using `kable`
+
+t_out_tidy <- t_out |> tidy() 
+
+t_out_tidy |> select(-c(method, alternative)) |> 
+  rename("Diff in Means" = estimate,
+         "Group 0" = estimate1,
+         "Group 1" = estimate2,
+         "t-statistic" = statistic,
+         "p-value" = p.value,
+         "df" = parameter,
+         "CI Lower" = conf.low,
+         "CI Upper" = conf.high) |> kable(digits = 2)
+```
+
+```{r tbl-ttesttable_kable2}
+#| echo: false
+#| warning: false
+#| tbl-cap: Distance and Sqrt Distance by Speed Group using `kable`
+
+t_out_tidy2 <- t_out_2 |> tidy() 
+
+t_out_all <- bind_rows(t_out_tidy, t_out_tidy2) 
+
+t_out_all |> select(-c(method, alternative)) |> 
+  rename("Diff Means" = estimate,
+         "Slow" = estimate1,
+         "Fast" = estimate2,
+         "t-stat" = statistic,
+         "p-value" = p.value,
+         "df" = parameter,
+         "CI Lower" = conf.low,
+         "CI Upper" = conf.high) |> 
+  mutate(Outcome = c("Dist", "Dist Sqrt")) |>
+  select(Outcome, everything()) |> 
+  kable(digits = 2)
+```
+
+# Discussion
+
+We remind the reader what this paper was about, why it was important, and what we found. We reflect on limitations of the data or methods. If we have specific advice for someone picking up where we leave off, we provide that guidance. We avoid making trite statements like "more research should be done".
+
+\clearpage
+
+# References
