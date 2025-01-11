@@ -1,7 +1,7 @@
 from google.cloud import bigquery
 from google.oauth2 import service_account
 
-key_path = "service-account-key.json"  # Your uploaded file name
+key_path = "service-account-key.json" 
 credentials = service_account.Credentials.from_service_account_file(
     key_path,
     scopes=["https://www.googleapis.com/auth/cloud-platform"],
